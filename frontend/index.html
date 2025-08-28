@@ -25,9 +25,10 @@
 </div>
 
 <script type="module">
-    import { FFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg.wasm/core-mt/dist/core.min.js';
 
-  const ffmpeg = FFmpeg.create({
+
+  const ffmpeg = await FFmpeg.create({
+    core: "https://cdn.jsdelivr.net/npm/@ffmpeg.wasm@$version/core-mt/dist/core.min.js",
     log: true,
     progress: ({ ratio }) => {
       if (ratio !== undefined) {
