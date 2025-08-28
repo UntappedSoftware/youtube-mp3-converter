@@ -32,40 +32,132 @@ async def run_subprocess(*args):
 async def root():
     html_content = """
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-        <title>YouTube Audio URL API</title>
+        <title>YouTube to MP3 Converter</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
         <style>
-            body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-            input, button { padding: 10px; font-size: 16px; margin: 5px; }
-            #result { margin-top: 20px; font-weight: bold; }
+            body {
+                background: #f7f7f7;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+            }
+            .container {
+                max-width: 500px;
+                margin: 60px auto;
+                background: #fff;
+                border-radius: 12px;
+                box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+                padding: 32px 24px 24px 24px;
+                text-align: center;
+            }
+            h1 {
+                color: #222;
+                font-size: 2.1em;
+                margin-bottom: 10px;
+            }
+            p {
+                color: #666;
+                font-size: 1.1em;
+                margin-bottom: 24px;
+            }
+            input[type="text"] {
+                width: 80%;
+                padding: 12px;
+                font-size: 1em;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                margin-bottom: 16px;
+                outline: none;
+                transition: border-color 0.2s;
+            }
+            input[type="text"]:focus {
+                border-color: #0078d7;
+            }
+            button {
+                background: #0078d7;
+                color: #fff;
+                border: none;
+                padding: 12px 32px;
+                font-size: 1em;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            button:hover {
+                background: #005fa3;
+            }
+            #result {
+                margin-top: 28px;
+                font-size: 1.08em;
+                color: #222;
+                word-break: break-all;
+            }
+            .result-title {
+                font-weight: bold;
+                font-size: 1.15em;
+                margin-bottom: 8px;
+            }
+            .result-link {
+                display: block;
+                margin: 8px 0;
+                color: #0078d7;
+                text-decoration: underline;
+                word-break: break-all;
+            }
+            .download-btn {
+                display: inline-block;
+                margin-top: 12px;
+                background: #28a745;
+                color: #fff;
+                padding: 10px 24px;
+                border-radius: 6px;
+                text-decoration: none;
+                font-weight: bold;
+                transition: background 0.2s;
+            }
+            .download-btn:hover {
+                background: #218838;
+            }
+            @media (max-width: 600px) {
+                .container {
+                    padding: 18px 8px 18px 8px;
+                }
+                input[type="text"] {
+                    width: 98%;
+                }
+            }
         </style>
     </head>
     <body>
-        <h1>YouTube Audio URL API</h1>
-        <p>Paste a YouTube URL below to get the audio URL and title:</p>
-        <input type="text" id="youtube_url" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" size="50"/>
-        <button onclick="getAudioUrl()">Get Audio URL</button>
-        <div id="result"></div>
-
+        <div class="container">
+            <h1>YouTube to MP3 Converter</h1>
+            <p>Paste a YouTube URL below and click Convert to get the audio and download the MP3 file.</p>
+            <input type="text" id="youtube_url" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" />
+            <br>
+            <button onclick="getAudioUrl()">Convert</button>
+            <div id="result"></div>
+        </div>
         <script>
             async function getAudioUrl() {
                 const url = document.getElementById('youtube_url').value;
                 const resultDiv = document.getElementById('result');
-                resultDiv.textContent = 'Loading...';
+                resultDiv.innerHTML = '<span style="color:#0078d7;">Converting...</span>';
                 try {
                     const response = await fetch(`/getVideoUrl?youtube_url=${encodeURIComponent(url)}`);
                     const data = await response.json();
                     if(data.error){
-                        resultDiv.textContent = 'Error: ' + data.error;
+                        resultDiv.innerHTML = '<span style="color:red;">Error: ' + data.error + '</span>';
                     } else {
                         resultDiv.innerHTML = 
-                            'Title: ' + data.title + '<br>' + 
-                            'Audio URL: <a href="' + data.audioUrl + '" target="_blank">' + data.audioUrl + '</a><br>' +
-                            'Download MP3: <a href="' + data.mp3DownloadUrl + '" target="_blank" download>Click here</a>';
+                            '<div class="result-title">' + data.title + '</div>' +
+                            '<a class="result-link" href="' + data.audioUrl + '" target="_blank">Direct Audio URL</a>' +
+                            '<a class="download-btn" href="' + data.mp3DownloadUrl + '" target="_blank" download>Download MP3</a>';
                     }
                 } catch (err) {
-                    resultDiv.textContent = 'Request failed: ' + err;
+                    resultDiv.innerHTML = '<span style="color:red;">Request failed: ' + err + '</span>';
                 }
             }
         </script>
