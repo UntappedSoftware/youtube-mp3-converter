@@ -9,7 +9,7 @@
   button { padding: 10px 20px; font-size: 16px; margin-left: 10px; }
   #status { margin-top: 20px; font-weight: bold; }
   #progressContainer { width: 100%; background-color: #eee; border-radius: 5px; margin-top: 10px; height: 20px; }
-  #progressBar { width: 0%; height: 100%; background-color: #4caf50; border-radius: 5px; }
+  #progressBar { width: 0%; height: 100%; background-color: #4caf50; border-radius: 5px; transition: width 0.2s; }
 </style>
 </head>
 <body>
@@ -24,10 +24,11 @@
   <div id="progressBar"></div>
 </div>
 
-<!-- ffmpeg.wasm import -->
+<!-- ffmpeg.wasm UMD global -->
 <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.0/dist/ffmpeg.min.js"></script>
 <script>
-const { createFFmpeg, fetchFile } = FFmpeg;
+const createFFmpeg = FFmpeg.createFFmpeg;
+const fetchFile = FFmpeg.fetchFile;
 
 // ==== CONFIG: Replace these with your deployed URLs ====
 const backendUrl = "https://your-backend.onrender.com/getVideoUrl";
