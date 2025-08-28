@@ -52,9 +52,9 @@
     </div>
 
     <script type="module">
-      import { createFFmpeg, fetchFile } from "/youtube-mp3-converter/frontend/static/ffmpeg/ffmpeg.js";
+      import { FFmpeg } from "/youtube-mp3-converter/frontend/static/ffmpeg/ffmpeg.js";
 
-      const ffmpeg = createFFmpeg({
+      const ffmpeg = new FFmpeg({
         log: true,
         corePath: "/youtube-mp3-converter/frontend/static/ffmpeg/ffmpeg-core.js",
         progress: ({ ratio }) => {
