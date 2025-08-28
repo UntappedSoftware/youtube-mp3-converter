@@ -156,6 +156,23 @@ async def root():
             .download-btn:hover {
                 background: #218838;
             }
+            .coffee-btn {
+                display: inline-block;
+                margin-top: 24px;
+                background: #ff813f;
+                color: #fff;
+                padding: 12px 32px;
+                border-radius: 8px;
+                text-decoration: none;
+                font-weight: bold;
+                font-size: 1.1em;
+                box-shadow: 0 2px 8px rgba(255,129,63,0.15);
+                transition: background 0.2s, box-shadow 0.2s;
+            }
+            .coffee-btn:hover {
+                background: #e66b2f;
+                box-shadow: 0 4px 16px rgba(255,129,63,0.25);
+            }
             .progress-bar-bg {
                 width: 80%;
                 background: #eee;
@@ -231,6 +248,9 @@ async def root():
                 <div class="progress-label" id="progressLabel"></div>
             </div>
             <div id="result"></div>
+            <a class="coffee-btn" href="https://ko-fi.com/mp3tube" target="_blank">
+                ☕ Buy me a coffee
+            </a>
         </div>
         <div id="faqs" class="container" style="margin-top:40px;">
             <h2>FAQs</h2>
