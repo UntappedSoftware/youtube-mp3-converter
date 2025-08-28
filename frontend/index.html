@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>YouTube to MP3</title>
+</head>
+<body>
+<h2>YouTube to MP3 Converter</h2>
+<input id="youtubeURL" placeholder="Paste YouTube URL" size="50" />
+<button id="convertBtn">Convert to MP3</button>
+<p id="status"></p>
+
+<script type="module">
+import { createFFmpeg, fetchFile } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js';
+
+const ffmpeg = createFFmpeg({ log: true });
+const convertBtn = document.getElementById('convertBtn');
+const status = document.getElementById('status');
+
+convertBtn.onclick = async () => {
+    const url = document.getElementById('youtubeURL').value;
+    if (!url) return alert("Please paste a YouTube URL");
+
+    status.innerText = "Fetching audio URL...";
+    
+    try {
+        const res = await fetch(`http://localhost:8000/getVideoUrl?youtube_url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        
+        status.innerText = `Converting "${data.title}"...`;
+        await ffmpeg.load();
+
+        const audioData = await fetchFile(`http://localhost:5000/proxy?url=${encodeURIComponent(data.audioUrl)}`);
+        ffmpeg.FS('writeFile', 'input.audio', audioData);
+
+        await ffmpeg.run('-i', 'input.audio', '-q:a', '0', '-map', 'a', 'output.mp3');
+
+        const mp3Data = ffmpeg.FS('readFile', 'output.mp3');
+        const blob = new Blob([mp3Data.buffer], { type: 'audio/mp3' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${data.title}.mp3`;
+        a.click();
+
+        status.innerText = "Conversion complete!";
+    } catch (err) {
+        console.error(err);
+        status.innerText = "Error: " + err.message;
+    }
+};
+</script>
+</body>
+</html>
