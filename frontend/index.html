@@ -25,11 +25,12 @@
 </div>
 
 <script type="module">
-  import * as ffmpeg from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/ffmpeg.mjs';
+  __webpack_public_path__ = ''; // top of your entry JS file
+  import * as ffmpeg from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js';
 
   const my_ffmpeg = ffmpeg.createFFmpeg({
     log: true,
-  corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/ffmpeg.mjs',
+  corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js',
     progress: (p) => {
       if (p.ratio) {
         const percent = Math.round(p.ratio * 100);
