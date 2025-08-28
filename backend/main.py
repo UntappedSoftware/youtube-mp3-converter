@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 import asyncio
+import os
+import uuid
 
 # Path to your exported cookies file (Netscape format)
 COOKIES_FILE = "cookies.txt"
@@ -74,13 +76,34 @@ async def root():
 @app.get("/getVideoUrl")
 async def get_video_url(youtube_url: str = Query(...), fmt: str = "bestaudio"):
     try:
-        # Use cookies file to bypass bot detection
+        # Generate a unique filename for the MP3
+        unique_id = str(uuid.uuid4())
+        mp3_filename = f"{unique_id}.mp3"
+        mp3_filepath = f"/tmp/{mp3_filename}"
+
+        # Get audio URL and title
         audio_url = await run_subprocess(
             "yt-dlp", "-f", fmt, "-g", "--cookies", COOKIES_FILE, youtube_url
         )
         title = await run_subprocess(
             "yt-dlp", "--get-title", "--cookies", COOKIES_FILE, youtube_url
         )
-        return {"title": title, "audioUrl": audio_url}
+
+        # Download and convert to MP3
+        await run_subprocess(
+            "yt-dlp", "-x", "--audio-format", "mp3", "--output", mp3_filepath,
+            "--cookies", COOKIES_FILE, youtube_url
+        )
+
+        # Return info and download link
+        download_url = f"/download/{mp3_filename}"
+        return {"title": title, "audioUrl": audio_url, "mp3DownloadUrl": download_url}
     except Exception as e:
         return {"error": str(e)}
+
+@app.get("/download/{mp3_filename}")
+async def download_mp3(mp3_filename: str):
+    mp3_filepath = f"/tmp/{mp3_filename}"
+    if os.path.exists(mp3_filepath):
+        return FileResponse(mp3_filepath, media_type="audio/mpeg", filename=mp3_filename)
+    return {"error": "File not found"}
