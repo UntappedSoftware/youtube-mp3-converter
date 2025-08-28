@@ -9,68 +9,11 @@
         padding: 20px;
         max-width: 700px;
         margin: auto;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       }
       input {
         width: 80%;
         padding: 10px;
         font-size: 16px;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       }
       button {
         padding: 10px 20px;
@@ -147,7 +90,8 @@
           status.innerText = `Preparing to convert: "${data.title}"`;
 
           // 2. Load FFmpeg WASM
-          if (!ffmpeg.isLoaded()) await ffmpeg.load();
+          //if (!ffmpeg.isLoaded())
+          await ffmpeg.load();
 
           // 3. Fetch audio via CORS proxy
           status.innerText = "Downloading audio stream via proxy...";
