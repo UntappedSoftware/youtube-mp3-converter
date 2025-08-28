@@ -27,7 +27,7 @@
 <script type="module">
   import { ffmpeg, fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js';
 
-  const ffmpeg = ffmpeg.createFFmpeg({
+  const my_ffmpeg = ffmpeg.createFFmpeg({
     log: true,
     progress: (p) => {
       if (p.ratio) {
@@ -56,8 +56,8 @@
 
       status.innerText = `Preparing to convert: "${data.title}"`;
 
-      // 2. Load ffmpeg.wasm
-      await ffmpeg.load();
+      // 2. Load my_ffmpeg.wasm
+      await my_ffmpeg.load();
 
       // 3. Fetch audio via CORS proxy
       status.innerText = 'Downloading audio stream via proxy (this may take a few seconds)...';
@@ -72,14 +72,14 @@
         }
       }
 
-      // 4. Write input file for ffmpeg
-      ffmpeg.FS('writeFile', 'input.audio', audioData);
+      // 4. Write input file for my_ffmpeg
+      my_ffmpeg.FS('writeFile', 'input.audio', audioData);
 
       // 5. Convert to MP3 (progress handled automatically)
-      await ffmpeg.run('-i', 'input.audio', '-q:a', '0', '-map', 'a', 'output.mp3');
+      await my_ffmpeg.run('-i', 'input.audio', '-q:a', '0', '-map', 'a', 'output.mp3');
 
       // 6. Create downloadable MP3 blob
-      const mp3Data = ffmpeg.FS('readFile', 'output.mp3');
+      const mp3Data = my_ffmpeg.FS('readFile', 'output.mp3');
       const blob = new Blob([mp3Data.buffer], { type: 'audio/mp3' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
