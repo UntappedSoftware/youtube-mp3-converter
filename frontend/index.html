@@ -25,9 +25,9 @@
 </div>
 
 <script type="module">
-  import { createFFmpeg, fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js';
+  import { ffmpeg, fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js';
 
-  const ffmpeg = createFFmpeg({
+  const ffmpeg = ffmpeg.createFFmpeg({
     log: true,
     progress: (p) => {
       if (p.ratio) {
