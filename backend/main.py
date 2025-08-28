@@ -2,7 +2,9 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import asyncio
-import json
+
+# Path to your exported cookies file (Netscape format)
+COOKIES_FILE = "cookies.txt"
 
 app = FastAPI()
 app.add_middleware(
@@ -72,8 +74,13 @@ async def root():
 @app.get("/getVideoUrl")
 async def get_video_url(youtube_url: str = Query(...), fmt: str = "bestaudio"):
     try:
-        audio_url = await run_subprocess("yt-dlp", "-f", fmt, "-g", youtube_url)
-        title = await run_subprocess("yt-dlp", "--get-title", youtube_url)
+        # Use cookies file to bypass bot detection
+        audio_url = await run_subprocess(
+            "yt-dlp", "-f", fmt, "-g", "--cookies", COOKIES_FILE, youtube_url
+        )
+        title = await run_subprocess(
+            "yt-dlp", "--get-title", "--cookies", COOKIES_FILE, youtube_url
+        )
         return {"title": title, "audioUrl": audio_url}
     except Exception as e:
         return {"error": str(e)}
