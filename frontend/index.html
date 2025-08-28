@@ -25,7 +25,7 @@
 </div>
 
 <script type="module">
-  import { ffmpeg, fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js';
+  import { ffmpeg} from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js';
 
   const my_ffmpeg = ffmpeg.createFFmpeg({
     log: true,
@@ -61,7 +61,7 @@
 
       // 3. Fetch audio via CORS proxy
       status.innerText = 'Downloading audio stream via proxy (this may take a few seconds)...';
-      const audioData = await fetchFile(`https://your-proxy.onrender.com/proxy?url=${encodeURIComponent(data.audioUrl)}`);
+      const audioData = await ffmpeg.fetchFile(`https://your-proxy.onrender.com/proxy?url=${encodeURIComponent(data.audioUrl)}`);
 
       // Optional: warn if file is large
       if (audioData.byteLength > 50_000_000) {
