@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-import subprocess
+import asyncio
 
 app = FastAPI()
 app.add_middleware(
@@ -10,25 +10,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+async def run_subprocess(*args):
+    """Run a subprocess asynchronously and capture stdout/stderr."""
+    process = await asyncio.create_subprocess_exec(
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"Command failed: {stderr.decode().strip()}")
+    return stdout.decode().strip()
+
 @app.get("/getVideoUrl")
-async def get_video_url(youtube_url: str = Query(...)):
+async def get_video_url(youtube_url: str = Query(...), fmt: str = "bestaudio"):
     try:
-        result = subprocess.run(
-            ["yt-dlp", "-f", "bestaudio", "-g", youtube_url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=True
-        )
-        audio_url = result.stdout.strip()
-        title_result = subprocess.run(
-            ["yt-dlp", "--get-title", youtube_url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=True
-        )
-        title = title_result.stdout.strip()
+        # Run yt-dlp to get audio URL
+        audio_url = await run_subprocess("yt-dlp", "-f", fmt, "-g", youtube_url)
+        
+        # Run yt-dlp to get video title
+        title = await run_subprocess("yt-dlp", "--get-title", youtube_url)
+        
         return {"title": title, "audioUrl": audio_url}
-    except subprocess.CalledProcessError as e:
-        return {"error": e.stderr}
+    except Exception as e:
+        return {"error": str(e)}
