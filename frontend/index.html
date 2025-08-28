@@ -9,11 +9,68 @@
         padding: 20px;
         max-width: 700px;
         margin: auto;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       }
       input {
         width: 80%;
         padding: 10px;
         font-size: 16px;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       }
       button {
         padding: 10px 20px;
@@ -52,11 +109,11 @@
     </div>
 
     <script type="module">
-      import { FFmpeg } from "/youtube-mp3-converter/frontend/static/ffmpeg/ffmpeg.js";
+      import { FFmpeg } from "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg/+esm";
 
       const ffmpeg = new FFmpeg({
+        //core: "https://cdn.jsdelivr.net/npm/@ffmpeg.wasm/core-mt/dist/core.min.js",
         log: true,
-        corePath: "/youtube-mp3-converter/frontend/static/ffmpeg/ffmpeg-core.js",
         progress: ({ ratio }) => {
           if (ratio !== undefined) {
             const percent = Math.round(ratio * 100);
@@ -89,10 +146,10 @@
 
           status.innerText = `Preparing to convert: "${data.title}"`;
 
-          // 2. Load FFmpeg
+          // 2. Load FFmpeg WASM
           if (!ffmpeg.isLoaded()) await ffmpeg.load();
 
-          // 3. Fetch audio via proxy
+          // 3. Fetch audio via CORS proxy
           status.innerText = "Downloading audio stream via proxy...";
           const audioData = await fetchFile(
             `https://your-proxy.onrender.com/proxy?url=${encodeURIComponent(
@@ -100,6 +157,7 @@
             )}`
           );
 
+          // Optional: warn if file is large
           if (audioData.byteLength > 50_000_000) {
             const proceed = confirm(
               "The file is large and conversion may take a while. Continue?"
@@ -110,7 +168,7 @@
             }
           }
 
-          // 4. Write input file
+          // 4. Write input file for FFmpeg
           ffmpeg.FS("writeFile", "input.audio", audioData);
 
           // 5. Convert to MP3
