@@ -26,9 +26,9 @@
 
 <script type="module">
   
-  import * as ffmpeg from 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm/ffmpeg-core.min.js';
+  import * from 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm/ffmpeg-core.min.js';
 
-  const my_ffmpeg = ffmpeg.createFFmpeg({
+  const my_ffmpeg = createFFmpeg({
     log: true,
   corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm/ffmpeg-core.min.js',
     progress: (p) => {
