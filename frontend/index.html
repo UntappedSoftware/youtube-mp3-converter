@@ -25,10 +25,10 @@
 </div>
 
 <script type="module">
-  import ffmpeg from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js';
+  import createFFmpeg from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js';
 // You can then use ffmpeg.createFFmpeg()
 
-  const ffmpeg = createFFmpeg({
+  const my_ffmpeg = createFFmpeg({
     log: true,
     progress: (p) => {
       if (p.ratio) {
