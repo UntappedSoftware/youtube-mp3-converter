@@ -121,11 +121,41 @@ async def root():
             .download-btn:hover {
                 background: #218838;
             }
+            .progress-bar-bg {
+                width: 80%;
+                background: #eee;
+                border-radius: 6px;
+                margin: 18px auto 0 auto;
+                height: 18px;
+                position: relative;
+                overflow: hidden;
+                display: none;
+            }
+            .progress-bar-fill {
+                background: linear-gradient(90deg, #0078d7 0%, #28a745 100%);
+                height: 100%;
+                width: 0%;
+                border-radius: 6px;
+                transition: width 0.3s;
+            }
+            .progress-label {
+                position: absolute;
+                width: 100%;
+                text-align: center;
+                top: 0;
+                left: 0;
+                font-size: 0.95em;
+                color: #222;
+                line-height: 18px;
+            }
             @media (max-width: 600px) {
                 .container {
                     padding: 18px 8px 18px 8px;
                 }
                 input[type="text"] {
+                    width: 98%;
+                }
+                .progress-bar-bg {
                     width: 98%;
                 }
             }
@@ -138,16 +168,37 @@ async def root():
             <input type="text" id="youtube_url" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" />
             <br>
             <button onclick="getAudioUrl()">Convert</button>
+            <div class="progress-bar-bg" id="progressBar">
+                <div class="progress-bar-fill" id="progressFill"></div>
+                <div class="progress-label" id="progressLabel"></div>
+            </div>
             <div id="result"></div>
         </div>
         <script>
+            function showProgress(percent, label) {
+                const bar = document.getElementById('progressBar');
+                const fill = document.getElementById('progressFill');
+                const lbl = document.getElementById('progressLabel');
+                bar.style.display = 'block';
+                fill.style.width = percent + '%';
+                lbl.textContent = label || '';
+            }
+            function hideProgress() {
+                document.getElementById('progressBar').style.display = 'none';
+                document.getElementById('progressFill').style.width = '0%';
+                document.getElementById('progressLabel').textContent = '';
+            }
             async function getAudioUrl() {
                 const url = document.getElementById('youtube_url').value;
                 const resultDiv = document.getElementById('result');
-                resultDiv.innerHTML = '<span style="color:#0078d7;">Converting...</span>';
+                showProgress(10, 'Starting...');
+                resultDiv.innerHTML = '';
                 try {
+                    showProgress(30, 'Fetching video info...');
                     const response = await fetch(`/getVideoUrl?youtube_url=${encodeURIComponent(url)}`);
+                    showProgress(70, 'Converting to MP3...');
                     const data = await response.json();
+                    hideProgress();
                     if(data.error){
                         resultDiv.innerHTML = '<span style="color:red;">Error: ' + data.error + '</span>';
                     } else {
@@ -157,6 +208,7 @@ async def root():
                             '<a class="download-btn" href="' + data.mp3DownloadUrl + '" target="_blank" download>Download MP3</a>';
                     }
                 } catch (err) {
+                    hideProgress();
                     resultDiv.innerHTML = '<span style="color:red;">Request failed: ' + err + '</span>';
                 }
             }
