@@ -2,40 +2,71 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>YouTube to MP3</title>
+<title>YouTube to MP3 Converter</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; max-width: 700px; margin: auto; }
+  input { width: 80%; padding: 10px; font-size: 16px; }
+  button { padding: 10px 20px; font-size: 16px; margin-left: 10px; }
+  #status { margin-top: 20px; font-weight: bold; }
+</style>
 </head>
 <body>
+
 <h2>YouTube to MP3 Converter</h2>
-<input id="youtubeURL" placeholder="Paste YouTube URL" size="50" />
+<p>Paste a YouTube URL below and download the audio as MP3.</p>
+<input id="youtubeURL" placeholder="Paste YouTube URL here" />
 <button id="convertBtn">Convert to MP3</button>
 <p id="status"></p>
 
 <script type="module">
 import { createFFmpeg, fetchFile } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js';
 
+// ==== CONFIG: Replace these with your deployed URLs ====
+const backendUrl = "https://youtube-mp3-converter-hdir.onrender.com/getVideoUrl";
+const proxyUrl = "https://youtube-mp3-converter-proxy.onrender.com/proxy";
+
 const ffmpeg = createFFmpeg({ log: true });
 const convertBtn = document.getElementById('convertBtn');
 const status = document.getElementById('status');
 
 convertBtn.onclick = async () => {
-    const url = document.getElementById('youtubeURL').value;
-    if (!url) return alert("Please paste a YouTube URL");
+    const youtubeURL = document.getElementById('youtubeURL').value.trim();
+    if (!youtubeURL) return alert("Please paste a YouTube URL");
 
-    status.innerText = "Fetching audio URL...";
-    
     try {
-        const res = await fetch(`http://localhost:8000/getVideoUrl?youtube_url=${encodeURIComponent(url)}`);
+        status.innerText = "Fetching audio URL from backend...";
+        
+        // 1. Get direct audio URL from backend
+        const res = await fetch(`${backendUrl}?youtube_url=${encodeURIComponent(youtubeURL)}`);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        
-        status.innerText = `Converting "${data.title}"...`;
+
+        status.innerText = `Preparing to convert: "${data.title}"`;
+
+        // 2. Load ffmpeg.wasm
         await ffmpeg.load();
 
-        const audioData = await fetchFile(`http://localhost:5000/proxy?url=${encodeURIComponent(data.audioUrl)}`);
+        // 3. Fetch audio via CORS proxy
+        status.innerText = "Downloading audio stream via proxy (this may take a few seconds)...";
+        const audioData = await fetchFile(`${proxyUrl}?url=${encodeURIComponent(data.audioUrl)}`);
+
+        // Optional: warn if file is large
+        if (audioData.byteLength > 50_000_000) {
+            const proceed = confirm("The file is large and conversion may take a while. Continue?");
+            if (!proceed) {
+                status.innerText = "Conversion canceled.";
+                return;
+            }
+        }
+
+        // 4. Write input file for ffmpeg
         ffmpeg.FS('writeFile', 'input.audio', audioData);
 
+        // 5. Convert to MP3
+        status.innerText = "Converting to MP3...";
         await ffmpeg.run('-i', 'input.audio', '-q:a', '0', '-map', 'a', 'output.mp3');
 
+        // 6. Create downloadable MP3 blob
         const mp3Data = ffmpeg.FS('readFile', 'output.mp3');
         const blob = new Blob([mp3Data.buffer], { type: 'audio/mp3' });
         const a = document.createElement('a');
@@ -43,12 +74,13 @@ convertBtn.onclick = async () => {
         a.download = `${data.title}.mp3`;
         a.click();
 
-        status.innerText = "Conversion complete!";
+        status.innerText = `Conversion complete: "${data.title}.mp3"`;
     } catch (err) {
         console.error(err);
         status.innerText = "Error: " + err.message;
     }
 };
 </script>
+
 </body>
 </html>
