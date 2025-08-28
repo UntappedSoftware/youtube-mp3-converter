@@ -52,11 +52,11 @@
     </div>
 
     <script type="module">
-      import { FFmpeg } from "/youtube-mp3-converter/frontend/static/ffmpeg/ffmpeg.min.js";
+      import { createFFmpeg, fetchFile } from "/youtube-mp3-converter/frontend/static/ffmpeg/ffmpeg.min.js";
 
-      const ffmpeg = new FFmpeg({
-        //core: "https://cdn.jsdelivr.net/npm/@ffmpeg.wasm/core-mt/dist/core.min.js",
+      const ffmpeg = createFFmpeg({
         log: true,
+        corePath: "/youtube-mp3-converter/frontend/static/ffmpeg/ffmpeg-core.js",
         progress: ({ ratio }) => {
           if (ratio !== undefined) {
             const percent = Math.round(ratio * 100);
@@ -89,11 +89,10 @@
 
           status.innerText = `Preparing to convert: "${data.title}"`;
 
-          // 2. Load FFmpeg WASM
-          //if (!ffmpeg.isLoaded())
-          await ffmpeg.load();
+          // 2. Load FFmpeg
+          if (!ffmpeg.isLoaded()) await ffmpeg.load();
 
-          // 3. Fetch audio via CORS proxy
+          // 3. Fetch audio via proxy
           status.innerText = "Downloading audio stream via proxy...";
           const audioData = await fetchFile(
             `https://your-proxy.onrender.com/proxy?url=${encodeURIComponent(
@@ -101,7 +100,6 @@
             )}`
           );
 
-          // Optional: warn if file is large
           if (audioData.byteLength > 50_000_000) {
             const proceed = confirm(
               "The file is large and conversion may take a while. Continue?"
@@ -112,7 +110,7 @@
             }
           }
 
-          // 4. Write input file for FFmpeg
+          // 4. Write input file
           ffmpeg.FS("writeFile", "input.audio", audioData);
 
           // 5. Convert to MP3
