@@ -44,6 +44,41 @@ async def root():
                 margin: 0;
                 padding: 0;
             }
+            .navbar {
+                position: sticky;
+                top: 0;
+                width: 100%;
+                background: #222;
+                color: #fff;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 32px;
+                height: 64px;
+                z-index: 100;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+            }
+            .navbar-logo {
+                display: flex;
+                align-items: center;
+                font-size: 1.5em;
+                font-weight: bold;
+                letter-spacing: 1px;
+            }
+            .navbar-logo img {
+                height: 38px;
+                margin-right: 12px;
+            }
+            .navbar-links a {
+                color: #fff;
+                text-decoration: none;
+                margin-left: 28px;
+                font-size: 1.08em;
+                transition: color 0.2s;
+            }
+            .navbar-links a:hover {
+                color: #28a745;
+            }
             .container {
                 max-width: 500px;
                 margin: 60px auto;
@@ -149,6 +184,18 @@ async def root():
                 line-height: 18px;
             }
             @media (max-width: 600px) {
+                .navbar {
+                    flex-direction: column;
+                    height: auto;
+                    padding: 12px 8px;
+                }
+                .navbar-logo {
+                    margin-bottom: 8px;
+                }
+                .navbar-links a {
+                    margin-left: 16px;
+                    font-size: 1em;
+                }
                 .container {
                     padding: 18px 8px 18px 8px;
                 }
@@ -162,6 +209,17 @@ async def root():
         </style>
     </head>
     <body>
+        <nav class="navbar">
+            <div class="navbar-logo">
+                <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f3a7.svg" alt="Logo" />
+                MP3Tube
+            </div>
+            <div class="navbar-links">
+                <a href="#faqs">FAQs</a>
+                <a href="#contact">Contact</a>
+                <a href="#about">About</a>
+            </div>
+        </nav>
         <div class="container">
             <h1>YouTube to MP3 Converter</h1>
             <p>Paste a YouTube URL below and click Convert to get the audio and download the MP3 file.</p>
@@ -173,6 +231,20 @@ async def root():
                 <div class="progress-label" id="progressLabel"></div>
             </div>
             <div id="result"></div>
+        </div>
+        <div id="faqs" class="container" style="margin-top:40px;">
+            <h2>FAQs</h2>
+            <p><b>Is this free?</b> Yes, this tool is free to use.</p>
+            <p><b>How does it work?</b> Paste a YouTube link, click Convert, and download the MP3.</p>
+            <p><b>Is my data safe?</b> Yes, we do not store your downloads.</p>
+        </div>
+        <div id="contact" class="container" style="margin-top:40px;">
+            <h2>Contact</h2>
+            <p>Email: <a href="mailto:support@example.com">support@example.com</a></p>
+        </div>
+        <div id="about" class="container" style="margin-top:40px;">
+            <h2>About</h2>
+            <p>This open-source tool lets you convert YouTube videos to MP3 audio easily and quickly.</p>
         </div>
         <script>
             function showProgress(percent, label) {
