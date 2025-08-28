@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>YouTube to MP3 Converter</title>
-<style>
-  body { font-family: Arial, sans-serif; padding: 20px; max-width: 700px; margin: auto; }
-  input { width: 80%; padding: 10px; font-size: 16px; }
-  button { padding: 10px 20px; font-size: 16px; margin-left: 10px; }
-  #status { margin-top: 20px; font-weight: bold; }
-  #progressContainer { width: 100%; background-color: #eee; border-radius: 5px; margin-top: 10px; height: 20px; }
-  #progressBar { width: 0%; height: 100%; background-color: #4caf50; border-radius: 5px; transition: width 0.2s; }
-</style>
+  <meta charset="UTF-8">
+  <title>YouTube to MP3 Converter</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 700px; margin: auto; }
+    input { width: 80%; padding: 10px; font-size: 16px; }
+    button { padding: 10px 20px; font-size: 16px; margin-left: 10px; }
+    #status { margin-top: 20px; font-weight: bold; }
+    #progressContainer { width: 100%; background-color: #eee; border-radius: 5px; margin-top: 10px; height: 20px; }
+    #progressBar { width: 0%; height: 100%; background-color: #4caf50; border-radius: 5px; transition: width 0.2s; }
+  </style>
 </head>
 <body>
 
@@ -25,79 +25,75 @@
 </div>
 
 <script type="module">
-import { createFFmpeg, fetchFile } from "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.0/dist/ffmpeg.mjs";
+  import { createFFmpeg, fetchFile } from 'https://cdn.jsdelivr.net/npm/lite-ffmpeg-wasm@0.7.1/ffmpeg-core.js';
 
-// ==== CONFIG: Replace these with your deployed URLs ====
-const backendUrl = "https://your-backend.onrender.com/getVideoUrl";
-const proxyUrl = "https://your-proxy.onrender.com/proxy";
-
-const ffmpeg = createFFmpeg({
+  const ffmpeg = createFFmpeg({
     log: true,
-    progress: p => {
-        if (p.ratio) {
-            const percent = Math.round(p.ratio * 100);
-            document.getElementById('progressBar').style.width = percent + "%";
-            document.getElementById('status').innerText = "Converting: " + percent + "%";
-        }
+    progress: (p) => {
+      if (p.ratio) {
+        const percent = Math.round(p.ratio * 100);
+        document.getElementById('progressBar').style.width = percent + '%';
+        document.getElementById('status').innerText = 'Converting: ' + percent + '%';
+      }
     }
-});
+  });
 
-const convertBtn = document.getElementById('convertBtn');
-const status = document.getElementById('status');
+  const convertBtn = document.getElementById('convertBtn');
+  const status = document.getElementById('status');
 
-convertBtn.onclick = async () => {
+  convertBtn.onclick = async () => {
     const youtubeURL = document.getElementById('youtubeURL').value.trim();
-    if (!youtubeURL) return alert("Please paste a YouTube URL");
+    if (!youtubeURL) return alert('Please paste a YouTube URL');
 
     try {
-        document.getElementById('progressBar').style.width = "0%";
-        status.innerText = "Fetching audio URL from backend...";
-        
-        // 1. Get direct audio URL from backend
-        const res = await fetch(`${backendUrl}?youtube_url=${encodeURIComponent(youtubeURL)}`);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+      document.getElementById('progressBar').style.width = '0%';
+      status.innerText = 'Fetching audio URL from backend...';
 
-        status.innerText = `Preparing to convert: "${data.title}"`;
+      // 1. Get direct audio URL from backend
+      const res = await fetch(`https://your-backend.onrender.com/getVideoUrl?youtube_url=${encodeURIComponent(youtubeURL)}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
 
-        // 2. Load ffmpeg.wasm
-        await ffmpeg.load();
+      status.innerText = `Preparing to convert: "${data.title}"`;
 
-        // 3. Fetch audio via CORS proxy
-        status.innerText = "Downloading audio stream via proxy (this may take a few seconds)...";
-        const audioData = await fetchFile(`${proxyUrl}?url=${encodeURIComponent(data.audioUrl)}`);
+      // 2. Load ffmpeg.wasm
+      await ffmpeg.load();
 
-        // Optional: warn if file is large
-        if (audioData.byteLength > 50_000_000) {
-            const proceed = confirm("The file is large and conversion may take a while. Continue?");
-            if (!proceed) {
-                status.innerText = "Conversion canceled.";
-                return;
-            }
+      // 3. Fetch audio via CORS proxy
+      status.innerText = 'Downloading audio stream via proxy (this may take a few seconds)...';
+      const audioData = await fetchFile(`https://your-proxy.onrender.com/proxy?url=${encodeURIComponent(data.audioUrl)}`);
+
+      // Optional: warn if file is large
+      if (audioData.byteLength > 50_000_000) {
+        const proceed = confirm('The file is large and conversion may take a while. Continue?');
+        if (!proceed) {
+          status.innerText = 'Conversion canceled.';
+          return;
         }
+      }
 
-        // 4. Write input file for ffmpeg
-        ffmpeg.FS('writeFile', 'input.audio', audioData);
+      // 4. Write input file for ffmpeg
+      ffmpeg.FS('writeFile', 'input.audio', audioData);
 
-        // 5. Convert to MP3 (progress handled automatically)
-        await ffmpeg.run('-i', 'input.audio', '-q:a', '0', '-map', 'a', 'output.mp3');
+      // 5. Convert to MP3 (progress handled automatically)
+      await ffmpeg.run('-i', 'input.audio', '-q:a', '0', '-map', 'a', 'output.mp3');
 
-        // 6. Create downloadable MP3 blob
-        const mp3Data = ffmpeg.FS('readFile', 'output.mp3');
-        const blob = new Blob([mp3Data.buffer], { type: 'audio/mp3' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `${data.title}.mp3`;
-        a.click();
+      // 6. Create downloadable MP3 blob
+      const mp3Data = ffmpeg.FS('readFile', 'output.mp3');
+      const blob = new Blob([mp3Data.buffer], { type: 'audio/mp3' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${data.title}.mp3`;
+      a.click();
 
-        status.innerText = `Conversion complete: "${data.title}.mp3"`;
-        document.getElementById('progressBar').style.width = "100%";
+      status.innerText = `Conversion complete: "${data.title}.mp3"`;
+      document.getElementById('progressBar').style.width = '100%';
     } catch (err) {
-        console.error(err);
-        status.innerText = "Error: " + err.message;
-        document.getElementById('progressBar').style.width = "0%";
+      console.error(err);
+      status.innerText = 'Error: ' + err.message;
+      document.getElementById('progressBar').style.width = '0%';
     }
-};
+  };
 </script>
 
 </body>
