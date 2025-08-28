@@ -25,9 +25,9 @@
 </div>
 
 <script type="module">
-    import { createFFmpeg, fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg.wasm/main@0.13.1/dist/index.js';
+    import { FFmpeg, fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg.wasm/main@0.13.1/dist/index.js';
 
-  const ffmpeg = createFFmpeg({
+  const ffmpeg = FFmpeg.create({
     log: true,
     progress: ({ ratio }) => {
       if (ratio !== undefined) {
