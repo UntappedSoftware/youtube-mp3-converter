@@ -29,7 +29,7 @@
 
   const my_ffmpeg = ffmpeg.createFFmpeg({
     log: true,
-  corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/ffmpeg-core.js'
+  corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js'
     progress: (p) => {
       if (p.ratio) {
         const percent = Math.round(p.ratio * 100);
