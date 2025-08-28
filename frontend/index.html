@@ -8,6 +8,8 @@
   input { width: 80%; padding: 10px; font-size: 16px; }
   button { padding: 10px 20px; font-size: 16px; margin-left: 10px; }
   #status { margin-top: 20px; font-weight: bold; }
+  #progressContainer { width: 100%; background-color: #eee; border-radius: 5px; margin-top: 10px; height: 20px; }
+  #progressBar { width: 0%; height: 100%; background-color: #4caf50; border-radius: 5px; }
 </style>
 </head>
 <body>
@@ -18,14 +20,30 @@
 <button id="convertBtn">Convert to MP3</button>
 <p id="status"></p>
 
-<script type="module">
-import { createFFmpeg, fetchFile } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js';
+<div id="progressContainer">
+  <div id="progressBar"></div>
+</div>
+
+<!-- ffmpeg.wasm import -->
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.0/dist/ffmpeg.min.js"></script>
+<script>
+const { createFFmpeg, fetchFile } = FFmpeg;
 
 // ==== CONFIG: Replace these with your deployed URLs ====
-const backendUrl = "https://youtube-mp3-converter-hdir.onrender.com/getVideoUrl";
-const proxyUrl = "https://youtube-mp3-converter-proxy.onrender.com/proxy";
+const backendUrl = "https://your-backend.onrender.com/getVideoUrl";
+const proxyUrl = "https://your-proxy.onrender.com/proxy";
 
-const ffmpeg = createFFmpeg({ log: true });
+const ffmpeg = createFFmpeg({
+    log: true,
+    progress: p => {
+        if (p.ratio) {
+            const percent = Math.round(p.ratio * 100);
+            document.getElementById('progressBar').style.width = percent + "%";
+            document.getElementById('status').innerText = "Converting: " + percent + "%";
+        }
+    }
+});
+
 const convertBtn = document.getElementById('convertBtn');
 const status = document.getElementById('status');
 
@@ -34,6 +52,7 @@ convertBtn.onclick = async () => {
     if (!youtubeURL) return alert("Please paste a YouTube URL");
 
     try {
+        document.getElementById('progressBar').style.width = "0%";
         status.innerText = "Fetching audio URL from backend...";
         
         // 1. Get direct audio URL from backend
@@ -62,8 +81,7 @@ convertBtn.onclick = async () => {
         // 4. Write input file for ffmpeg
         ffmpeg.FS('writeFile', 'input.audio', audioData);
 
-        // 5. Convert to MP3
-        status.innerText = "Converting to MP3...";
+        // 5. Convert to MP3 (progress handled automatically)
         await ffmpeg.run('-i', 'input.audio', '-q:a', '0', '-map', 'a', 'output.mp3');
 
         // 6. Create downloadable MP3 blob
@@ -75,9 +93,11 @@ convertBtn.onclick = async () => {
         a.click();
 
         status.innerText = `Conversion complete: "${data.title}.mp3"`;
+        document.getElementById('progressBar').style.width = "100%";
     } catch (err) {
         console.error(err);
         status.innerText = "Error: " + err.message;
+        document.getElementById('progressBar').style.width = "0%";
     }
 };
 </script>
