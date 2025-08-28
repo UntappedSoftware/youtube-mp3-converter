@@ -61,7 +61,8 @@ async def root():
                     } else {
                         resultDiv.innerHTML = 
                             'Title: ' + data.title + '<br>' + 
-                            'Audio URL: <a href="' + data.audioUrl + '" target="_blank">' + data.audioUrl + '</a>';
+                            'Audio URL: <a href="' + data.audioUrl + '" target="_blank">' + data.audioUrl + '</a><br>' +
+                            'Download MP3: <a href="' + data.mp3DownloadUrl + '" target="_blank" download>Click here</a>';
                     }
                 } catch (err) {
                     resultDiv.textContent = 'Request failed: ' + err;
