@@ -15,26 +15,18 @@ jobs:
       - name: Copy files to Droplet via SSH
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.164.92.83.107 }}
-          username: ${{ secrets.root }}
-          key: ${{ secrets.b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACCU/kYQqrxv92gWOx+FxexwLX2kuEFKE9jSdPC/OqIZgwAAAJAi387SIt/O
-0gAAAAtzc2gtZWQyNTUxOQAAACCU/kYQqrxv92gWOx+FxexwLX2kuEFKE9jSdPC/OqIZgw
-AAAEAWX9MEAPd5J9mqu15S0Kx6getQFdz2PwGJIP/HJNOKt5T+RhCqvG/3aBY7H4XF7HAt
-faS4QUoT2NJ08L86ohmDAAAADWdpdGh1Yi1hY3Rpb24= }}
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
           source: "."
           target: "/home/${{ secrets.root }}/app"
 
       - name: SSH and rebuild/restart Docker
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ secrets.164.92.83.107 }}
-          username: ${{ secrets.root }}
-          key: ${{ secrets.b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACCU/kYQqrxv92gWOx+FxexwLX2kuEFKE9jSdPC/OqIZgwAAAJAi387SIt/O
-0gAAAAtzc2gtZWQyNTUxOQAAACCU/kYQqrxv92gWOx+FxexwLX2kuEFKE9jSdPC/OqIZgw
-AAAEAWX9MEAPd5J9mqu15S0Kx6getQFdz2PwGJIP/HJNOKt5T+RhCqvG/3aBY7H4XF7HAt
-faS4QUoT2NJ08L86ohmDAAAADWdpdGh1Yi1hY3Rpb24= }}
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
           script: |
             cd /home/${{ secrets.root }}/app/backend
             docker build -t mp3tube .
