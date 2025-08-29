@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 import asyncio
@@ -27,6 +27,39 @@ async def run_subprocess(*args):
     if process.returncode != 0:
         raise Exception(f"Command failed: {stderr.decode().strip()}")
     return stdout.decode().strip()
+
+# Store job status in memory (for demo; use Redis/db for production)
+conversion_jobs = {}
+
+@app.post("/start_conversion")
+async def start_conversion(youtube_url: str, background_tasks: BackgroundTasks):
+    job_id = str(uuid.uuid4())
+    conversion_jobs[job_id] = {"status": "pending", "progress": 0, "download_url": None, "error": None}
+    background_tasks.add_task(convert_youtube_to_mp3, youtube_url, job_id)
+    return {"job_id": job_id}
+
+async def convert_youtube_to_mp3(youtube_url, job_id):
+    try:
+        mp3_filename = f"{job_id}.mp3"
+        mp3_filepath = f"/tmp/{mp3_filename}"
+        conversion_jobs[job_id]["status"] = "downloading"
+        # Run yt-dlp (no progress, just status update)
+        await run_subprocess(
+            "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
+            "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url
+        )
+        conversion_jobs[job_id]["status"] = "done"
+        conversion_jobs[job_id]["download_url"] = f"/download/{mp3_filename}"
+    except Exception as e:
+        conversion_jobs[job_id]["status"] = "error"
+        conversion_jobs[job_id]["error"] = str(e)
+
+@app.get("/conversion_status/{job_id}")
+async def conversion_status(job_id: str):
+    job = conversion_jobs.get(job_id)
+    if not job:
+        return {"error": "Job not found"}
+    return job
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -242,7 +275,7 @@ async def root():
             <p>Paste a YouTube URL below and click Convert to get the audio and download the MP3 file.</p>
             <input type="text" id="youtube_url" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" />
             <br>
-            <button onclick="startConversionWS()">Convert</button>
+            <button onclick="startConversionPolling()">Convert</button>
             <div class="progress-bar-bg" id="progressBar">
                 <div class="progress-bar-fill" id="progressFill"></div>
                 <div class="progress-label" id="progressLabel"></div>
@@ -280,52 +313,48 @@ async def root():
                 document.getElementById('progressFill').style.width = '0%';
                 document.getElementById('progressLabel').textContent = '';
             }
-            function parseProgress(line) {
-                // Basic yt-dlp progress parsing (customize for your needs)
-                const match = line.match(/(\d{1,3}\.\d)%/);
-                if (match) {
-                    return parseFloat(match[1]);
-                }
-                return null;
-            }
-            function startConversionWS() {
+            function startConversionPolling() {
                 const url = document.getElementById('youtube_url').value;
                 const resultDiv = document.getElementById('result');
                 resultDiv.innerHTML = '';
-                showProgress(5, 'Connecting...');
-                let wsProto = location.protocol === "https:" ? "wss" : "ws";
-                let ws = new WebSocket(wsProto + "://" + location.host + "/ws/progress");
-                ws.onopen = () => {
-                    showProgress(10, 'Starting...');
-                    ws.send(JSON.stringify({youtube_url: url}));
-                };
-                ws.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        if (data.error) {
-                            hideProgress();
-                            resultDiv.innerHTML = '<span style="color:red;">Error: ' + data.error + '</span>';
-                        } else if (data.done) {
+                showProgress(10, 'Starting...');
+                fetch('/start_conversion', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({youtube_url: url})
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.job_id) {
+                        pollStatus(data.job_id, resultDiv);
+                    } else {
+                        hideProgress();
+                        resultDiv.innerHTML = '<span style="color:red;">Error starting conversion.</span>';
+                    }
+                })
+                .catch(() => {
+                    hideProgress();
+                    resultDiv.innerHTML = '<span style="color:red;">Request failed.</span>';
+                });
+            }
+            function pollStatus(job_id, resultDiv) {
+                let interval = setInterval(() => {
+                    fetch('/conversion_status/' + job_id)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === "pending" || data.status === "downloading") {
+                            showProgress(50, "Converting...");
+                        } else if (data.status === "done") {
                             hideProgress();
                             resultDiv.innerHTML = '<a class="download-btn" href="' + data.download_url + '" target="_blank" download>Download MP3</a>';
+                            clearInterval(interval);
+                        } else if (data.status === "error") {
+                            hideProgress();
+                            resultDiv.innerHTML = '<span style="color:red;">Error: ' + data.error + '</span>';
+                            clearInterval(interval);
                         }
-                    } catch {
-                        // Not JSON, treat as progress text
-                        const percent = parseProgress(event.data);
-                        if (percent !== null) {
-                            showProgress(percent, `Converting... (${percent}%)`);
-                        } else {
-                            showProgress(50, event.data);
-                        }
-                    }
-                };
-                ws.onerror = () => {
-                    hideProgress();
-                    resultDiv.innerHTML = '<span style="color:red;">WebSocket error.</span>';
-                };
-                ws.onclose = () => {
-                    hideProgress();
-                };
+                    });
+                }, 2000);
             }
         </script>
     </body>
