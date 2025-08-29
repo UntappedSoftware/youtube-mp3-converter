@@ -20,4 +20,4 @@ primary_region = 'iad'
   size = 'shared-cpu-1x'
 
 [env]
-PORT = "8080"
+PORT = "8000"
