@@ -326,10 +326,10 @@ async def get_video_url(youtube_url: str = Query(...), fmt: str = "bestaudio"):
             "yt-dlp", "--get-title", "--cookies", COOKIES_FILE, youtube_url
         )
 
-        # Download and convert to MP3
+        # Download and convert to MP3 using optimized yt-dlp command
         await run_subprocess(
-            "yt-dlp", "-x", "--audio-format", "mp3", "--output", mp3_filepath,
-            "--cookies", COOKIES_FILE, youtube_url
+            "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
+            "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url
         )
 
         # Return info and download link
