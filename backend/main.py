@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
+from pydantic import BaseModel
 import asyncio
 import os
 import uuid
@@ -31,11 +32,14 @@ async def run_subprocess(*args):
 # Store job status in memory (for demo; use Redis/db for production)
 conversion_jobs = {}
 
+class ConversionRequest(BaseModel):
+    youtube_url: str
+
 @app.post("/start_conversion")
-async def start_conversion(youtube_url: str, background_tasks: BackgroundTasks):
+async def start_conversion(request: ConversionRequest, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())
     conversion_jobs[job_id] = {"status": "pending", "progress": 0, "download_url": None, "error": None}
-    background_tasks.add_task(convert_youtube_to_mp3, youtube_url, job_id)
+    background_tasks.add_task(convert_youtube_to_mp3, request.youtube_url, job_id)
     return {"job_id": job_id}
 
 async def convert_youtube_to_mp3(youtube_url, job_id):
