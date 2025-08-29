@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 import asyncio
@@ -242,7 +242,7 @@ async def root():
             <p>Paste a YouTube URL below and click Convert to get the audio and download the MP3 file.</p>
             <input type="text" id="youtube_url" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" />
             <br>
-            <button onclick="getAudioUrl()">Convert</button>
+            <button onclick="startConversionWS()">Convert</button>
             <div class="progress-bar-bg" id="progressBar">
                 <div class="progress-bar-fill" id="progressFill"></div>
                 <div class="progress-label" id="progressLabel"></div>
@@ -280,35 +280,90 @@ async def root():
                 document.getElementById('progressFill').style.width = '0%';
                 document.getElementById('progressLabel').textContent = '';
             }
-            async function getAudioUrl() {
+            function parseProgress(line) {
+                // Basic yt-dlp progress parsing (customize for your needs)
+                const match = line.match(/(\d{1,3}\.\d)%/);
+                if (match) {
+                    return parseFloat(match[1]);
+                }
+                return null;
+            }
+            function startConversionWS() {
                 const url = document.getElementById('youtube_url').value;
                 const resultDiv = document.getElementById('result');
-                showProgress(10, 'Starting...');
                 resultDiv.innerHTML = '';
-                try {
-                    showProgress(30, 'Fetching video info...');
-                    const response = await fetch(`/getVideoUrl?youtube_url=${encodeURIComponent(url)}`);
-                    showProgress(70, 'Converting to MP3...');
-                    const data = await response.json();
-                    hideProgress();
-                    if(data.error){
-                        resultDiv.innerHTML = '<span style="color:red;">Error: ' + data.error + '</span>';
-                    } else {
-                        resultDiv.innerHTML = 
-                            '<div class="result-title">' + data.title + '</div>' +
-                            '<a class="result-link" href="' + data.audioUrl + '" target="_blank">Direct Audio URL</a>' +
-                            '<a class="download-btn" href="' + data.mp3DownloadUrl + '" target="_blank" download>Download MP3</a>';
+                showProgress(5, 'Connecting...');
+                let wsProto = location.protocol === "https:" ? "wss" : "ws";
+                let ws = new WebSocket(wsProto + "://" + location.host + "/ws/progress");
+                ws.onopen = () => {
+                    showProgress(10, 'Starting...');
+                    ws.send(JSON.stringify({youtube_url: url}));
+                };
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.error) {
+                            hideProgress();
+                            resultDiv.innerHTML = '<span style="color:red;">Error: ' + data.error + '</span>';
+                        } else if (data.done) {
+                            hideProgress();
+                            resultDiv.innerHTML = '<a class="download-btn" href="' + data.download_url + '" target="_blank" download>Download MP3</a>';
+                        }
+                    } catch {
+                        // Not JSON, treat as progress text
+                        const percent = parseProgress(event.data);
+                        if (percent !== null) {
+                            showProgress(percent, `Converting... (${percent}%)`);
+                        } else {
+                            showProgress(50, event.data);
+                        }
                     }
-                } catch (err) {
+                };
+                ws.onerror = () => {
                     hideProgress();
-                    resultDiv.innerHTML = '<span style="color:red;">Request failed: ' + err + '</span>';
-                }
+                    resultDiv.innerHTML = '<span style="color:red;">WebSocket error.</span>';
+                };
+                ws.onclose = () => {
+                    hideProgress();
+                };
             }
         </script>
     </body>
     </html>
     """
     return HTMLResponse(content=html_content)
+
+from fastapi import WebSocket, WebSocketDisconnect
+
+@app.websocket("/ws/progress")
+async def websocket_progress(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        data = await websocket.receive_json()
+        youtube_url = data["youtube_url"]
+        unique_id = str(uuid.uuid4())
+        mp3_filename = f"{unique_id}.mp3"
+        mp3_filepath = f"/tmp/{mp3_filename}"
+
+        process = await asyncio.create_subprocess_exec(
+            "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
+            "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+            await websocket.send_text(line.decode())
+        await process.wait()
+        await websocket.send_json({"done": True, "download_url": f"/download/{mp3_filename}"})
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        await websocket.send_json({"error": str(e)})
+    finally:
+        await websocket.close()
 
 @app.get("/getVideoUrl")
 async def get_video_url(youtube_url: str = Query(...), fmt: str = "bestaudio"):
