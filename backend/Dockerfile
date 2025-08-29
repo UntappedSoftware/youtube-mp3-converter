@@ -4,7 +4,10 @@ WORKDIR /app
 
 COPY . /app
 
-RUN pip install --upgrade pip && \
+# Install ffmpeg and other dependencies
+RUN apt-get update && \
+    apt-get install -y ffmpeg && \
+    pip install --upgrade pip && \
     pip install fastapi uvicorn yt-dlp
 
 EXPOSE 8080
