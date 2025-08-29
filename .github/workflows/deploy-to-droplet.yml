@@ -3,7 +3,7 @@ name: Deploy to DigitalOcean Droplet
 on:
   push:
     branches:
-      - main # or your deployment branch
+      - main
 
 jobs:
   deploy:
@@ -19,7 +19,7 @@ jobs:
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
           source: "."
-          target: "/home/${{ secrets.root }}/app"
+          target: "/root/app"
 
       - name: SSH and rebuild/restart Docker
         uses: appleboy/ssh-action@v0.1.10
@@ -28,7 +28,7 @@ jobs:
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script: |
-            cd /home/${{ secrets.root }}/app/backend
+            cd /root/app/backend
             docker build -t mp3tube .
             docker stop mp3tube || true
             docker rm mp3tube || true
