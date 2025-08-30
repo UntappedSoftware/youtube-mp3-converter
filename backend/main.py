@@ -8,6 +8,9 @@ import os
 import uuid
 import logging
 import time
+import random
+import requests
+from bs4 import BeautifulSoup
 
 # Path to your exported cookies file (Netscape format)
 COOKIES_FILE = "cookies.txt"
@@ -32,21 +35,29 @@ conversion_jobs = {}
 async def run_subprocess(*args):
     """Run a subprocess asynchronously and capture stdout/stderr."""
     logger.info(f"Running subprocess: {' '.join(args)}")
+    
+    # Add proxy if it's a yt-dlp call
+    if args and 'yt-dlp' in args[0]:
+        proxy = get_random_proxy()
+        if proxy:
+            args = list(args) + ['--proxy', proxy]
+            logger.info(f"Added proxy {proxy} to yt-dlp command.")
+    
     process = await asyncio.create_subprocess_exec(
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await process.communicate()
-
-    # Log stderr output even if the process succeeds
+    
+    # Log stderr
     if stderr:
         logger.warning(f"Subprocess stderr: {stderr.decode().strip()}")
-
+    
     if process.returncode != 0:
         logger.error(f"Subprocess failed: {stderr.decode().strip()}")
         raise Exception(f"Command failed: {stderr.decode().strip()}")
-
+    
     logger.info(f"Subprocess output: {stdout.decode().strip()}")
     return stdout.decode().strip()
 
@@ -215,9 +226,15 @@ async def stream_conversion(youtube_url: str):
     try:
         logger.info(f"Starting stream conversion for URL: {youtube_url}")
 
+        # Get a random proxy
+        proxy = get_random_proxy()
+        proxy_flag = ['--proxy', proxy] if proxy else []
+        logger.info(f"Using proxy {proxy} for streaming.")
+
         # Step 1: Get the YouTube stream URL
         stream_url = await run_subprocess(
-            "yt-dlp", "-f", "bestaudio", "--no-playlist", "-g", "--cookies", COOKIES_FILE, youtube_url
+            "yt-dlp", "-f", "bestaudio", "--no-playlist", "-g", "--cookies", COOKIES_FILE, youtube_url,
+            *proxy_flag  # Add proxy flag
         )
         logger.info(f"Stream URL obtained: {stream_url}")
 
@@ -280,16 +297,68 @@ async def stream_conversion(youtube_url: str):
 # Add a semaphore to limit concurrent conversions (e.g., 2 at a time)
 conversion_semaphore = Semaphore(2)
 
+# Function to fetch proxies from free-proxy-list.net
+def fetch_free_proxies():
+    """Fetch a list of free proxies from https://free-proxy-list.net/."""
+    url = 'https://free-proxy-list.net/'
+    proxies = []
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        table = soup.find('table', {'class': 'table table-striped table-bordered'})
+        if not table:
+            logging.warning("Proxy table not found on the page.")
+            return proxies
+        
+        rows = table.find_all('tr')[1:]  # Skip header row
+        for row in rows:
+            cols = row.find_all('td')
+            if len(cols) >= 7:
+                ip = cols[0].text.strip()
+                port = cols[1].text.strip()
+                code = cols[2].text.strip()  # Country code
+                anonymity = cols[4].text.strip()  # e.g., anonymous
+                https = cols[6].text.strip().lower() == 'yes'  # HTTPS support
+                
+                # Prefer HTTPS proxies for yt-dlp
+                if https:
+                    proxy = f'https://{ip}:{port}'
+                else:
+                    proxy = f'http://{ip}:{port}'
+                
+                proxies.append(proxy)
+        
+        logging.info(f"Fetched {len(proxies)} proxies.")
+        return proxies[:50]  # Limit to 50 to avoid overload
+    except Exception as e:
+        logging.error(f"Error fetching proxies: {str(e)}")
+        return []
+
+# List of proxies (populate dynamically)
+PROXIES = fetch_free_proxies()
+
+def get_random_proxy():
+    """Select a random proxy from the list."""
+    return random.choice(PROXIES) if PROXIES else None
+
+# Example usage in convert_youtube_to_mp3
 async def convert_youtube_to_mp3(youtube_url, job_id):
-    async with conversion_semaphore:  # Limit concurrency
+    async with conversion_semaphore:
         try:
             start_time = time.time()
             logger.info(f"Job {job_id}: Starting conversion process.")
 
-            # Fetch audio stream URL (optimized)
+            # Get a random proxy
+            proxy = get_random_proxy()
+            proxy_flag = ['--proxy', proxy] if proxy else []
+            logger.info(f"Job {job_id}: Using proxy {proxy}.")
+
+            # Fetch audio stream URL (optimized with proxy)
             step_start = time.time()
             yt_dlp_process = await asyncio.create_subprocess_exec(
                 "yt-dlp", "-f", "bestaudio", "--no-playlist", "-o", "-", "--http-chunk-size", "10M", "--cookies", COOKIES_FILE, youtube_url,
+                *proxy_flag,  # Add proxy flag
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -342,6 +411,23 @@ async def pipe_streams(yt_dlp_process, ffmpeg_process):
     except Exception as e:
         logger.error(f"Error during piping streams: {str(e)}")
         raise
+
+@app.on_event("startup")
+async def startup_event():
+    # Fetch proxies on startup
+    global PROXIES
+    PROXIES = fetch_free_proxies()
+    logger.info(f"Loaded {len(PROXIES)} proxies on startup.")
+    
+    # Optional: Refresh proxies every hour
+    import asyncio
+    async def refresh_proxies():
+        while True:
+            await asyncio.sleep(3600)  # 1 hour
+            PROXIES = fetch_free_proxies()
+            logger.info(f"Refreshed proxies: {len(PROXIES)} available.")
+    
+    asyncio.create_task(refresh_proxies())
 
 @app.on_event("startup")
 async def preload_dependencies():
