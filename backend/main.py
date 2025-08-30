@@ -399,6 +399,14 @@ async def root():
                     </audio>
                 `;
             }
+
+            function startStreamingDownload() {
+                const url = document.getElementById('youtube_url').value;
+                const downloadLink = document.createElement('a');
+                downloadLink.href = `http://your-droplet-ip/stream_download?youtube_url=${encodeURIComponent(url)}`;
+                downloadLink.download = 'converted.mp3';
+                downloadLink.click();
+            }
         </script>
     </body>
     </html>
@@ -496,7 +504,7 @@ async def stream_conversion(youtube_url: str):
             stderr=asyncio.subprocess.PIPE,
         )
 
-        # Step 3: Stream the MP3 output to the user
+        # Step 3: Stream the MP3 output to the user's browser
         async def mp3_stream():
             while True:
                 chunk = await process.stdout.read(1024)  # Read in chunks
@@ -504,7 +512,13 @@ async def stream_conversion(youtube_url: str):
                     break
                 yield chunk
 
-        return StreamingResponse(mp3_stream(), media_type="audio/mpeg")
+        # Set the response headers to trigger a download in the browser
+        headers = {
+            "Content-Disposition": 'attachment; filename="converted.mp3"',
+            "Content-Type": "audio/mpeg",
+        }
+
+        return StreamingResponse(mp3_stream(), headers=headers)
 
     except Exception as e:
         return {"error": str(e)}
