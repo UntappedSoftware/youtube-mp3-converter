@@ -273,17 +273,38 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
         conversion_jobs[job_id]["status"] = "downloading"
         conversion_jobs[job_id]["progress"] = 10
 
-        # Use yt-dlp to stream audio and pipe it directly to ffmpeg
+        # Start yt-dlp process to fetch audio stream
         yt_dlp_process = await asyncio.create_subprocess_exec(
             "yt-dlp", "-f", "bestaudio", "-o", "-", "--cookies", COOKIES_FILE, youtube_url,
             stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
+
+        # Start ffmpeg process to convert the stream to MP3
         ffmpeg_process = await asyncio.create_subprocess_exec(
             "ffmpeg", "-i", "pipe:0", "-f", "mp3", "-b:a", "192k", "-vn", mp3_filepath,
-            stdin=yt_dlp_process.stdout,
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+
+        # Read from yt-dlp and write to ffmpeg
+        async def pipe_streams():
+            try:
+                while True:
+                    chunk = await yt_dlp_process.stdout.read(8192)  # Read in chunks
+                    if not chunk:
+                        break
+                    ffmpeg_process.stdin.write(chunk)  # Write to ffmpeg stdin
+                await ffmpeg_process.stdin.drain()
+                ffmpeg_process.stdin.close()
+            except Exception as e:
+                print(f"Error piping streams: {str(e)}")
+                raise
+
+        await pipe_streams()
+
+        # Wait for ffmpeg to finish
         await ffmpeg_process.communicate()
 
         if ffmpeg_process.returncode != 0:
