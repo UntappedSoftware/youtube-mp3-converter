@@ -29,6 +29,7 @@ async def run_subprocess(*args):
     stdout, stderr = await process.communicate()
     if process.returncode != 0:
         raise Exception(f"Command failed: {stderr.decode().strip()}")
+    print(f"Subprocess output: {stdout.decode().strip()}")  # Log the output
     return stdout.decode().strip()
 
 class ConversionRequest(BaseModel):
@@ -38,20 +39,24 @@ class ConversionRequest(BaseModel):
 async def start_conversion(request: ConversionRequest):
     try:
         # Step 1: Get the YouTube stream URL
-        stream_url = await run_subprocess(
-            "yt-dlp", "-f", "bestaudio", "-g", "--no-part", "--cookies", COOKIES_FILE, request.youtube_url
-        )
+        try:
+            stream_url = await run_subprocess(
+                "yt-dlp", "-f", "bestaudio", "-g", "--no-part", "--cookies", COOKIES_FILE, request.youtube_url
+            )
+        except Exception as e:
+            return {"error": f"yt-dlp failed: {str(e)}"}
 
         # Step 2: Use ffmpeg to process the stream and convert it to MP3
         ffmpeg_command = [
             "ffmpeg",
-            "-re",               # Read input in real-time
-            "-i", stream_url,    # Input is the YouTube stream URL
-            "-f", "mp3",         # Output format is MP3
-            "-b:a", "192k",      # Audio bitrate
-            "-vn",               # No video
-            "-flush_packets", "1",  # Flush packets immediately
-            "pipe:1"             # Output to stdout (streaming)
+            "-re",
+            "-fflags", "nobuffer",
+            "-i", stream_url,
+            "-f", "mp3",
+            "-b:a", "192k",
+            "-vn",
+            "-flush_packets", "1",
+            "pipe:1"
         ]
 
         process = await asyncio.create_subprocess_exec(
@@ -62,13 +67,19 @@ async def start_conversion(request: ConversionRequest):
 
         # Step 3: Stream the MP3 output to the user's browser
         async def mp3_stream():
-            while True:
-                chunk = await process.stdout.read(8192)  # Reduce chunk size to 8 KB
-                if not chunk:
-                    break
-                yield chunk
+            try:
+                while True:
+                    chunk = await process.stdout.read(8192)
+                    if not chunk:
+                        break
+                    yield chunk
+            except Exception as e:
+                print(f"Error during streaming: {str(e)}")
+                raise
+            finally:
+                stderr = await process.stderr.read()
+                print(f"FFmpeg stderr: {stderr.decode().strip()}")
 
-        # Set the response headers to trigger a download in the browser
         headers = {
             "Content-Disposition": 'attachment; filename="converted.mp3"',
             "Content-Type": "audio/mpeg",
@@ -220,6 +231,7 @@ async def stream_conversion(youtube_url: str):
         ffmpeg_command = [
             "ffmpeg",
             "-re",               # Read input in real-time
+            "-fflags", "nobuffer",  # Minimize buffering
             "-i", stream_url,    # Input is the YouTube stream URL
             "-f", "mp3",         # Output format is MP3
             "-b:a", "192k",      # Audio bitrate
@@ -236,11 +248,18 @@ async def stream_conversion(youtube_url: str):
 
         # Step 3: Stream the MP3 output to the user's browser
         async def mp3_stream():
-            while True:
-                chunk = await process.stdout.read(8192)  # Reduce chunk size to 8 KB
-                if not chunk:
-                    break
-                yield chunk
+            try:
+                while True:
+                    chunk = await process.stdout.read(8192)  # Reduce chunk size to 8 KB
+                    if not chunk:
+                        break
+                    yield chunk
+            except Exception as e:
+                print(f"Error during streaming: {str(e)}")  # Log any errors
+                raise
+            finally:
+                stderr = await process.stderr.read()
+                print(f"FFmpeg stderr: {stderr.decode().strip()}")  # Log FFmpeg errors
 
         # Set the response headers to trigger a download in the browser
         headers = {
