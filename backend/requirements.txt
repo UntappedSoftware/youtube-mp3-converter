@@ -1,5 +1,6 @@
 fastapi
-uvicorn
+uvicorn[standard]
+pydantic
 yt-dlp
 requests
 beautifulsoup4
