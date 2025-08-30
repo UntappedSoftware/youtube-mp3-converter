@@ -162,18 +162,6 @@ async def root():
                 color: #222;
                 word-break: break-all;
             }
-            .result-title {
-                font-weight: bold;
-                font-size: 1.15em;
-                margin-bottom: 8px;
-            }
-            .result-link {
-                display: block;
-                margin: 8px 0;
-                color: #0078d7;
-                text-decoration: underline;
-                word-break: break-all;
-            }
             .download-btn {
                 display: inline-block;
                 margin-top: 12px;
@@ -205,56 +193,6 @@ async def root():
                 background: #e66b2f;
                 box-shadow: 0 4px 16px rgba(255,129,63,0.25);
             }
-            .progress-bar-bg {
-                width: 80%;
-                background: #eee;
-                border-radius: 6px;
-                margin: 18px auto 0 auto;
-                height: 18px;
-                position: relative;
-                overflow: hidden;
-                display: none;
-            }
-            .progress-bar-fill {
-                background: linear-gradient(90deg, #0078d7 0%, #28a745 100%);
-                height: 100%;
-                width: 0%;
-                border-radius: 6px;
-                transition: width 0.3s;
-            }
-            .progress-label {
-                position: absolute;
-                width: 100%;
-                text-align: center;
-                top: 0;
-                left: 0;
-                font-size: 0.95em;
-                color: #222;
-                line-height: 18px;
-            }
-            @media (max-width: 600px) {
-                .navbar {
-                    flex-direction: column;
-                    height: auto;
-                    padding: 12px 8px;
-                }
-                .navbar-logo {
-                    margin-bottom: 8px;
-                }
-                .navbar-links a {
-                    margin-left: 16px;
-                    font-size: 1em;
-                }
-                .container {
-                    padding: 18px 8px 18px 8px;
-                }
-                input[type="text"] {
-                    width: 98%;
-                }
-                .progress-bar-bg {
-                    width: 98%;
-                }
-            }
         </style>
     </head>
     <body>
@@ -275,90 +213,12 @@ async def root():
             <input type="text" id="youtube_url" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" />
             <br>
             <button onclick="startStreamingConversion()">Convert</button>
-            <div class="progress-bar-bg" id="progressBar">
-                <div class="progress-bar-fill" id="progressFill"></div>
-                <div class="progress-label" id="progressLabel"></div>
-            </div>
             <div id="result"></div>
             <a class="coffee-btn" href="https://ko-fi.com/mp3tube" target="_blank">
                 ☕ Buy me a coffee
             </a>
         </div>
-        <div id="faqs" class="container" style="margin-top:40px;">
-            <h2>FAQs</h2>
-            <p><b>Is this free?</b> Yes, this tool is free to use.</p>
-            <p><b>How does it work?</b> Paste a YouTube link, click Convert, and download the MP3.</p>
-            <p><b>Is my data safe?</b> Yes, we do not store your downloads.</p>
-        </div>
-        <div id="contact" class="container" style="margin-top:40px;">
-            <h2>Contact</h2>
-            <p>Email: <a href="mailto:support@example.com">support@example.com</a></p>
-        </div>
-        <div id="about" class="container" style="margin-top:40px;">
-            <h2>About</h2>
-            <p>This open-source tool lets you convert YouTube videos to MP3 audio easily and quickly.</p>
-        </div>
         <script>
-            function showProgress(percent, label) {
-                const bar = document.getElementById('progressBar');
-                const fill = document.getElementById('progressFill');
-                const lbl = document.getElementById('progressLabel');
-                bar.style.display = 'block';
-                fill.style.transition = 'width 0.5s ease'; // Smooth animation
-                fill.style.width = percent + '%';
-                lbl.textContent = label || '';
-            }
-            function hideProgress() {
-                document.getElementById('progressBar').style.display = 'none';
-                document.getElementById('progressFill').style.width = '0%';
-                document.getElementById('progressLabel').textContent = '';
-            }
-            function startConversionPolling() {
-                const url = document.getElementById('youtube_url').value;
-                const resultDiv = document.getElementById('result');
-                resultDiv.innerHTML = '';
-                showProgress(10, 'Starting...');
-                fetch('http://164.92.83.107/start_conversion', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({youtube_url: url})
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.job_id) {
-                        pollStatus(data.job_id, resultDiv);
-                    } else {
-                        hideProgress();
-                        resultDiv.innerHTML = '<span style="color:red;">Error starting conversion.</span>';
-                    }
-                })
-                .catch(() => {
-                    hideProgress();
-                    resultDiv.innerHTML = '<span style="color:red;">Request failed.</span>';
-                });
-            }
-
-            function pollStatus(job_id, resultDiv) {
-                let interval = setInterval(() => {
-                    fetch(`/conversion_status/${job_id}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.status === "error") {
-                            hideProgress();
-                            resultDiv.innerHTML = `<span style="color:red;">Error: ${data.error}</span>`;
-                            clearInterval(interval);
-                        } else if (data.status === "done") {
-                            hideProgress();
-                            resultDiv.innerHTML = `<a class="download-btn" href="${data.download_url}" target="_blank" download>Download MP3</a>`;
-                            clearInterval(interval);
-                        } else {
-                            // Update progress bar and label
-                            showProgress(data.progress, `${data.status}...`);
-                        }
-                    });
-                }, 1000);
-            }
-
             function startStreamingConversion() {
                 const url = document.getElementById('youtube_url').value;
                 const resultDiv = document.getElementById('result');
@@ -372,14 +232,6 @@ async def root():
 
                 // Optionally, show a message while the download starts
                 resultDiv.innerHTML = '<span>Conversion started. Your download will begin shortly...</span>';
-            }
-
-            function startStreamingDownload() {
-                const url = document.getElementById('youtube_url').value;
-                const downloadLink = document.createElement('a');
-                downloadLink.href = `http://your-droplet-ip/stream_download?youtube_url=${encodeURIComponent(url)}`;
-                downloadLink.download = 'converted.mp3';
-                downloadLink.click();
             }
         </script>
     </body>
