@@ -301,11 +301,9 @@ conversion_semaphore = Semaphore(2)
 def test_proxy(proxy):
     """Test if a proxy works by making a request to httpbin.org/ip."""
     try:
-        response = requests.get('https://httpbin.org/ip', proxies={'https': proxy}, timeout=5)
+        protocol = 'https' if proxy.startswith('https') else 'http'
+        response = requests.get('http://httpbin.org/ip', proxies={protocol: proxy}, timeout=5)
         if response.status_code == 200:
-            data = response.json()
-            # Check if the IP in the response is not your real IP (indicating proxy is working)
-            # For simplicity, just check if request succeeded
             return True
         return False
     except:
@@ -342,9 +340,9 @@ def fetch_free_proxies():
         
         logger.info(f"Fetched {len(proxies)} proxies. Testing...")
         
-        # Filter proxies (test up to 20 to avoid long startup)
+        # Filter proxies (test up to 300 to avoid long startup)
         tested_proxies = []
-        for proxy in proxies[:20]:  # Limit to 20 for speed
+        for proxy in proxies[:300]:  # Test up to 300
             if test_proxy(proxy):
                 tested_proxies.append(proxy)
                 logger.info(f"Proxy {proxy} is working.")
