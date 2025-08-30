@@ -322,7 +322,7 @@ async def root():
                 const resultDiv = document.getElementById('result');
                 resultDiv.innerHTML = '';
                 showProgress(10, 'Starting...');
-                fetch('https://your-app-name.fly.dev/start_conversion', {
+                fetch('http://164.92.83.107/start_conversion', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({youtube_url: url})
