@@ -60,6 +60,13 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
         conversion_jobs[job_id]["status"] = "error"
         conversion_jobs[job_id]["error"] = str(e)
 
+@app.get("/job_status/{job_id}")
+async def job_status(job_id: str):
+    job = conversion_jobs.get(job_id)
+    if not job:
+        return {"error": "Job not found"}
+    return job
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     html_content = """
@@ -70,129 +77,24 @@ async def root():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <style>
-            body {
-                background: #f7f7f7;
-                font-family: 'Segoe UI', Arial, sans-serif;
-                margin: 0;
-                padding: 0;
-            }
-            .navbar {
-                position: sticky;
-                top: 0;
-                width: 100%;
-                background: #222;
-                color: #fff;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 0 32px;
-                height: 64px;
-                z-index: 100;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-            }
-            .navbar-logo {
-                display: flex;
-                align-items: center;
-                font-size: 1.5em;
-                font-weight: bold;
-                letter-spacing: 1px;
-            }
-            .navbar-logo img {
-                height: 38px;
-                margin-right: 12px;
-            }
-            .navbar-links a {
-                color: #fff;
-                text-decoration: none;
-                margin-left: 28px;
-                font-size: 1.08em;
-                transition: color 0.2s;
-            }
-            .navbar-links a:hover {
-                color: #28a745;
-            }
-            .container {
-                max-width: 500px;
-                margin: 60px auto;
-                background: #fff;
-                border-radius: 12px;
-                box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-                padding: 32px 24px 24px 24px;
-                text-align: center;
-            }
-            h1 {
-                color: #222;
-                font-size: 2.1em;
-                margin-bottom: 10px;
-            }
-            p {
-                color: #666;
-                font-size: 1.1em;
-                margin-bottom: 24px;
-            }
-            input[type="text"] {
-                width: 80%;
-                padding: 12px;
-                font-size: 1em;
-                border: 1px solid #ddd;
-                border-radius: 6px;
-                margin-bottom: 16px;
-                outline: none;
-                transition: border-color 0.2s;
-            }
-            input[type="text"]:focus {
-                border-color: #0078d7;
-            }
-            button {
-                background: #0078d7;
-                color: #fff;
-                border: none;
-                padding: 12px 32px;
-                font-size: 1em;
-                border-radius: 6px;
-                cursor: pointer;
-                transition: background 0.2s;
-            }
-            button:hover {
-                background: #005fa3;
-            }
-            #result {
-                margin-top: 28px;
-                font-size: 1.08em;
-                color: #222;
-                word-break: break-all;
-            }
-            .download-btn {
-                display: inline-block;
-                margin-top: 12px;
-                background: #28a745;
-                color: #fff;
-                padding: 10px 24px;
-                border-radius: 6px;
-                text-decoration: none;
-                font-weight: bold;
-                transition: background 0.2s;
-            }
-            .download-btn:hover {
-                background: #218838;
-            }
-            .coffee-btn {
-                display: inline-block;
-                margin-top: 24px;
-                background: #ff813f;
-                color: #fff;
-                padding: 12px 32px;
-                border-radius: 8px;
-                text-decoration: none;
-                font-weight: bold;
-                font-size: 1.1em;
-                box-shadow: 0 2px 8px rgba(255,129,63,0.15);
-                transition: background 0.2s, box-shadow 0.2s;
-            }
-            .coffee-btn:hover {
-                background: #e66b2f;
-                box-shadow: 0 4px 16px rgba(255,129,63,0.25);
-            }
+            body { background: #f7f7f7; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; }
+            .navbar { position: sticky; top: 0; width: 100%; background: #222; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 64px; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+            .navbar-logo { display: flex; align-items: center; font-size: 1.5em; font-weight: bold; letter-spacing: 1px; }
+            .navbar-logo img { height: 38px; margin-right: 12px; }
+            .navbar-links a { color: #fff; text-decoration: none; margin-left: 28px; font-size: 1.08em; transition: color 0.2s; }
+            .navbar-links a:hover { color: #28a745; }
+            .container { max-width: 500px; margin: 60px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 32px 24px 24px 24px; text-align: center; }
+            h1 { color: #222; font-size: 2.1em; margin-bottom: 10px; }
+            p { color: #666; font-size: 1.1em; margin-bottom: 24px; }
+            input[type="text"] { width: 80%; padding: 12px; font-size: 1em; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 16px; outline: none; transition: border-color 0.2s; }
+            input[type="text"]:focus { border-color: #0078d7; }
+            button { background: #0078d7; color: #fff; border: none; padding: 12px 32px; font-size: 1em; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+            button:hover { background: #005fa3; }
+            #result { margin-top: 28px; font-size: 1.08em; color: #222; word-break: break-all; }
+            .download-btn { display: inline-block; margin-top: 12px; background: #28a745; color: #fff; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; transition: background 0.2s; }
+            .download-btn:hover { background: #218838; }
+            .coffee-btn { display: inline-block; margin-top: 24px; background: #ff813f; color: #fff; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1em; box-shadow: 0 2px 8px rgba(255,129,63,0.15); transition: background 0.2s, box-shadow 0.2s; }
+            .coffee-btn:hover { background: #e66b2f; box-shadow: 0 4px 16px rgba(255,129,63,0.25); }
         </style>
     </head>
     <body>
@@ -212,26 +114,70 @@ async def root():
             <p>Paste a YouTube URL below and click Convert to get the audio and download the MP3 file.</p>
             <input type="text" id="youtube_url" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" />
             <br>
-            <button onclick="startStreamingConversion()">Convert</button>
+            <button onclick="startConversion()">Convert</button>
             <div id="result"></div>
             <a class="coffee-btn" href="https://ko-fi.com/mp3tube" target="_blank">
                 ☕ Buy me a coffee
             </a>
         </div>
         <script>
-            function startStreamingConversion() {
-                const url = document.getElementById('youtube_url').value;
+            async function startConversion() {
+                const url = document.getElementById('youtube_url').value.trim();
                 const resultDiv = document.getElementById('result');
                 resultDiv.innerHTML = '';
+                if (!url) {
+                    resultDiv.textContent = 'Please enter a YouTube URL.';
+                    return;
+                }
 
-                // Trigger the download directly
-                const downloadLink = document.createElement('a');
-                downloadLink.href = `http://your-droplet-ip/stream_conversion?youtube_url=${encodeURIComponent(url)}`;
-                downloadLink.download = 'converted.mp3';
-                downloadLink.click();
+                resultDiv.innerHTML = 'Starting conversion...';
 
-                // Optionally, show a message while the download starts
-                resultDiv.innerHTML = '<span>Conversion started. Your download will begin shortly...</span>';
+                // Start background conversion
+                try {
+                    const res = await fetch('/start_conversion', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ youtube_url: url })
+                    });
+                    const data = await res.json();
+                    if (!data.job_id) {
+                        resultDiv.textContent = 'Failed to start conversion.';
+                        return;
+                    }
+                    const jobId = data.job_id;
+
+                    // Poll status
+                    const pollInterval = 2000;
+                    const poll = setInterval(async () => {
+                        const statusRes = await fetch(`/job_status/${jobId}`);
+                        const statusData = await statusRes.json();
+                        if (statusData.error) {
+                            clearInterval(poll);
+                            resultDiv.innerHTML = '<span style="color:darkred;">Error: ' + (statusData.error || statusData.error) + '</span>';
+                            return;
+                        }
+                        if (statusData.status === 'downloading') {
+                            resultDiv.innerHTML = 'Downloading and converting... (' + (statusData.progress || 0) + '%)';
+                        } else if (statusData.status === 'done') {
+                            clearInterval(poll);
+                            const link = document.createElement('a');
+                            link.href = statusData.download_url;
+                            link.className = 'download-btn';
+                            link.textContent = 'Download MP3';
+                            link.setAttribute('download', '');
+                            resultDiv.innerHTML = '<div>Conversion complete:</div>';
+                            resultDiv.appendChild(link);
+                        } else if (statusData.status === 'error') {
+                            clearInterval(poll);
+                            resultDiv.innerHTML = '<span style="color:darkred;">Conversion failed: ' + (statusData.error || 'unknown') + '</span>';
+                        } else {
+                            resultDiv.innerHTML = 'Status: ' + statusData.status;
+                        }
+                    }, pollInterval);
+
+                } catch (err) {
+                    resultDiv.textContent = 'Error starting conversion: ' + err.message;
+                }
             }
         </script>
     </body>
