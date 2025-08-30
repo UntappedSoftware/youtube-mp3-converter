@@ -380,12 +380,14 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
             await pipe_streams(yt_dlp_process, ffmpeg_process)
             logger.info(f"Job {job_id}: Data piped in {time.time() - step_start:.2f} seconds.")
 
-            # Wait for ffmpeg to finish
-            step_start = time.time()
-            await ffmpeg_process.communicate()
+            # Wait for ffmpeg to finish and capture output
+            stdout, stderr = await ffmpeg_process.communicate()
+            if stderr:
+                logger.error(f"Job {job_id}: ffmpeg stderr: {stderr.decode().strip()}")
             if ffmpeg_process.returncode != 0:
                 logger.error(f"Job {job_id}: ffmpeg failed with return code {ffmpeg_process.returncode}")
                 conversion_jobs[job_id]["status"] = "error"
+                conversion_jobs[job_id]["error"] = f"ffmpeg failed: {stderr.decode().strip() if stderr else 'Unknown error'}"
                 return
 
             # Check if file was created
