@@ -17,6 +17,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+conversion_jobs = {}
+
 async def run_subprocess(*args):
     """Run a subprocess asynchronously and capture stdout/stderr."""
     process = await asyncio.create_subprocess_exec(
@@ -28,9 +30,6 @@ async def run_subprocess(*args):
     if process.returncode != 0:
         raise Exception(f"Command failed: {stderr.decode().strip()}")
     return stdout.decode().strip()
-
-# Store job status in memory (for demo; use Redis/db for production)
-conversion_jobs = {}
 
 class ConversionRequest(BaseModel):
     youtube_url: str
@@ -46,49 +45,20 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
     try:
         mp3_filename = f"{job_id}.mp3"
         mp3_filepath = f"/tmp/{mp3_filename}"
-        conversion_jobs[job_id]["status"] = "initializing"
-        conversion_jobs[job_id]["progress"] = 5
-
-        # Step 1: Get video metadata
-        conversion_jobs[job_id]["status"] = "fetching metadata"
+        conversion_jobs[job_id]["status"] = "downloading"
         conversion_jobs[job_id]["progress"] = 10
-        video_title = await run_subprocess(
-            "yt-dlp", "--get-title", "--cookies", COOKIES_FILE, youtube_url
-        )
 
-        # Step 2: Download audio
-        conversion_jobs[job_id]["status"] = "downloading audio"
-        conversion_jobs[job_id]["progress"] = 30
+        # Download and convert to MP3
         await run_subprocess(
-            "yt-dlp", "-f", "bestaudio", "-o", f"/tmp/{job_id}.%(ext)s",
-            "--cookies", COOKIES_FILE, youtube_url
+            "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
+            "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url
         )
-
-        # Step 3: Convert to MP3
-        conversion_jobs[job_id]["status"] = "converting to mp3"
-        conversion_jobs[job_id]["progress"] = 70
-        await run_subprocess(
-            "ffmpeg", "-i", f"/tmp/{job_id}.webm", "-q:a", "0", "-map", "a", mp3_filepath
-        )
-
-        # Step 4: Finalizing
-        conversion_jobs[job_id]["status"] = "finalizing"
-        conversion_jobs[job_id]["progress"] = 90
-
-        # Step 5: Done
         conversion_jobs[job_id]["status"] = "done"
         conversion_jobs[job_id]["progress"] = 100
         conversion_jobs[job_id]["download_url"] = f"/download/{mp3_filename}"
     except Exception as e:
         conversion_jobs[job_id]["status"] = "error"
         conversion_jobs[job_id]["error"] = str(e)
-
-@app.get("/conversion_status/{job_id}")
-async def conversion_status(job_id: str):
-    job = conversion_jobs.get(job_id)
-    if not job:
-        return {"error": "Job not found"}
-    return job
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -417,46 +387,9 @@ async def root():
     """
     return HTMLResponse(content=html_content)
 
-from fastapi import WebSocket, WebSocketDisconnect
-
-@app.websocket("/ws/progress")
-async def websocket_progress(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        data = await websocket.receive_json()
-        youtube_url = data["youtube_url"]
-        unique_id = str(uuid.uuid4())
-        mp3_filename = f"{unique_id}.mp3"
-        mp3_filepath = f"/tmp/{mp3_filename}"
-
-        process = await asyncio.create_subprocess_exec(
-            "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
-            "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        while True:
-            line = await process.stdout.readline()
-            if not line:
-                break
-            await websocket.send_text(line.decode())
-        await process.wait()
-        await websocket.send_json({"done": True, "download_url": f"/download/{mp3_filename}"})
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        await websocket.send_json({"error": str(e)})
-    finally:
-        await websocket.close()
-
 @app.get("/getVideoUrl")
 async def get_video_url(youtube_url: str = Query(...), fmt: str = "bestaudio"):
     try:
-        # Generate a unique filename for the MP3
-        unique_id = str(uuid.uuid4())
-        mp3_filename = f"{unique_id}.mp3"
-        mp3_filepath = f"/tmp/{mp3_filename}"
-
         # Get audio URL and title
         audio_url = await run_subprocess(
             "yt-dlp", "-f", fmt, "-g", "--cookies", COOKIES_FILE, youtube_url
@@ -465,15 +398,8 @@ async def get_video_url(youtube_url: str = Query(...), fmt: str = "bestaudio"):
             "yt-dlp", "--get-title", "--cookies", COOKIES_FILE, youtube_url
         )
 
-        # Download and convert to MP3 using optimized yt-dlp command
-        await run_subprocess(
-            "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
-            "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url
-        )
-
-        # Return info and download link
-        download_url = f"/download/{mp3_filename}"
-        return {"title": title, "audioUrl": audio_url, "mp3DownloadUrl": download_url}
+        # Return info only (no MP3 conversion)
+        return {"title": title, "audioUrl": audio_url}
     except Exception as e:
         return {"error": str(e)}
 
@@ -490,7 +416,7 @@ async def stream_conversion(youtube_url: str):
         # Step 1: Get the YouTube stream URL
         stream_url = await run_subprocess(
             "yt-dlp", "-f", "bestaudio", "-g", "--cookies", COOKIES_FILE, youtube_url
-        )
+        );
 
         # Step 2: Use ffmpeg to process the stream and convert it to MP3
         ffmpeg_command = [
@@ -500,13 +426,13 @@ async def stream_conversion(youtube_url: str):
             "-b:a", "192k",    # Audio bitrate
             "-vn",             # No video
             "pipe:1"           # Output to stdout (streaming)
-        ]
+        ];
 
         process = await asyncio.create_subprocess_exec(
             *ffmpeg_command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-        )
+        );
 
         # Step 3: Stream the MP3 output to the user's browser
         async def mp3_stream():
@@ -520,9 +446,9 @@ async def stream_conversion(youtube_url: str):
         headers = {
             "Content-Disposition": 'attachment; filename="converted.mp3"',
             "Content-Type": "audio/mpeg",
-        }
+        };
 
-        return StreamingResponse(mp3_stream(), headers=headers)
+        return StreamingResponse(mp3_stream(), headers=headers);
 
     except Exception as e:
         return {"error": str(e)}
