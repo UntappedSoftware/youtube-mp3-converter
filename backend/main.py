@@ -5,6 +5,8 @@ from pydantic import BaseModel
 import asyncio
 import os
 import uuid
+import logging
+import time
 
 # Path to your exported cookies file (Netscape format)
 COOKIES_FILE = "cookies.txt"
@@ -17,10 +19,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 conversion_jobs = {}
 
 async def run_subprocess(*args):
     """Run a subprocess asynchronously and capture stdout/stderr."""
+    logger.info(f"Running subprocess: {' '.join(args)}")
     process = await asyncio.create_subprocess_exec(
         *args,
         stdout=asyncio.subprocess.PIPE,
@@ -28,8 +38,9 @@ async def run_subprocess(*args):
     )
     stdout, stderr = await process.communicate()
     if process.returncode != 0:
+        logger.error(f"Subprocess failed: {stderr.decode().strip()}")
         raise Exception(f"Command failed: {stderr.decode().strip()}")
-    print(f"Subprocess output: {stdout.decode().strip()}")  # Log the output
+    logger.info(f"Subprocess output: {stdout.decode().strip()}")
     return stdout.decode().strip()
 
 class ConversionRequest(BaseModel):
@@ -38,16 +49,15 @@ class ConversionRequest(BaseModel):
 @app.post("/start_conversion")
 async def start_conversion(request: ConversionRequest, background_tasks: BackgroundTasks):
     try:
-        # Generate a unique job ID
         job_id = str(uuid.uuid4())
+        logger.info(f"Job {job_id}: Received conversion request for URL: {request.youtube_url}")
         conversion_jobs[job_id] = {"status": "initializing", "progress": 0, "download_url": None, "error": None}
 
-        # Add the conversion task to the background
         background_tasks.add_task(convert_youtube_to_mp3, request.youtube_url, job_id)
-
-        # Return the job ID to the client
+        logger.info(f"Job {job_id}: Conversion task added to background.")
         return {"job_id": job_id}
     except Exception as e:
+        logger.error(f"Error in /start_conversion: {str(e)}")
         return {"error": str(e)}
 
 @app.get("/job_status/{job_id}")
@@ -90,8 +100,6 @@ async def root():
     <body>
         <nav class="navbar">
             <div class="navbar-logo">
-                <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f3a7.svg" alt="Logo" />
-                MP3Tube
             </div>
             <div class="navbar-links">
                 <a href="#faqs">FAQs</a>
@@ -268,52 +276,41 @@ async def stream_conversion(youtube_url: str):
 
 async def convert_youtube_to_mp3(youtube_url, job_id):
     try:
-        mp3_filename = f"{job_id}.mp3"
-        mp3_filepath = f"/tmp/{mp3_filename}"
-        conversion_jobs[job_id]["status"] = "downloading"
-        conversion_jobs[job_id]["progress"] = 10
+        start_time = time.time()
+        logger.info(f"Job {job_id}: Starting conversion process.")
 
-        # Start yt-dlp process to fetch audio stream
+        # Fetch audio stream URL
+        step_start = time.time()
         yt_dlp_process = await asyncio.create_subprocess_exec(
             "yt-dlp", "-f", "bestaudio", "-o", "-", "--cookies", COOKIES_FILE, youtube_url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        logger.info(f"Job {job_id}: yt-dlp completed in {time.time() - step_start:.2f} seconds.")
 
-        # Start ffmpeg process to convert the stream to MP3
+        # Start ffmpeg process
+        step_start = time.time()
         ffmpeg_process = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-i", "pipe:0", "-f", "mp3", "-b:a", "192k", "-vn", mp3_filepath,
+            "ffmpeg", "-i", "pipe:0", "-f", "mp3", "-b:a", "128k", "-vn", f"/tmp/{job_id}.mp3",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        logger.info(f"Job {job_id}: ffmpeg started in {time.time() - step_start:.2f} seconds.")
 
-        # Read from yt-dlp and write to ffmpeg
-        async def pipe_streams():
-            try:
-                while True:
-                    chunk = await yt_dlp_process.stdout.read(8192)  # Read in chunks
-                    if not chunk:
-                        break
-                    ffmpeg_process.stdin.write(chunk)  # Write to ffmpeg stdin
-                await ffmpeg_process.stdin.drain()
-                ffmpeg_process.stdin.close()
-            except Exception as e:
-                print(f"Error piping streams: {str(e)}")
-                raise
-
+        # Pipe data
+        step_start = time.time()
         await pipe_streams()
+        logger.info(f"Job {job_id}: Data piped in {time.time() - step_start:.2f} seconds.")
 
         # Wait for ffmpeg to finish
+        step_start = time.time()
         await ffmpeg_process.communicate()
+        logger.info(f"Job {job_id}: ffmpeg finished in {time.time() - step_start:.2f} seconds.")
 
-        if ffmpeg_process.returncode != 0:
-            raise Exception("FFmpeg conversion failed")
-
-        conversion_jobs[job_id]["status"] = "done"
-        conversion_jobs[job_id]["progress"] = 100
-        conversion_jobs[job_id]["download_url"] = f"/download/{mp3_filename}"
+        logger.info(f"Job {job_id}: Total conversion time: {time.time() - start_time:.2f} seconds.")
     except Exception as e:
+        logger.error(f"Job {job_id}: Conversion failed: {str(e)}")
         conversion_jobs[job_id]["status"] = "error"
         conversion_jobs[job_id]["error"] = str(e)
 
