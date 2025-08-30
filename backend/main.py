@@ -340,9 +340,9 @@ def fetch_free_proxies():
         
         logger.info(f"Fetched {len(proxies)} proxies. Testing...")
         
-        # Filter proxies (test up to 300 to avoid long startup)
+        # Filter proxies (test up to 50 to avoid long startup)
         tested_proxies = []
-        for proxy in proxies[:300]:  # Test up to 300
+        for proxy in proxies[:50]:  # Test up to 50
             if test_proxy(proxy):
                 tested_proxies.append(proxy)
                 logger.info(f"Proxy {proxy} is working.")
