@@ -46,14 +46,36 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
     try:
         mp3_filename = f"{job_id}.mp3"
         mp3_filepath = f"/tmp/{mp3_filename}"
-        conversion_jobs[job_id]["status"] = "downloading"
-        conversion_jobs[job_id]["progress"] = 10
+        conversion_jobs[job_id]["status"] = "initializing"
+        conversion_jobs[job_id]["progress"] = 5
 
-        # Download and convert to MP3
-        await run_subprocess(
-            "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
-            "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url
+        # Step 1: Get video metadata
+        conversion_jobs[job_id]["status"] = "fetching metadata"
+        conversion_jobs[job_id]["progress"] = 10
+        video_title = await run_subprocess(
+            "yt-dlp", "--get-title", "--cookies", COOKIES_FILE, youtube_url
         )
+
+        # Step 2: Download audio
+        conversion_jobs[job_id]["status"] = "downloading audio"
+        conversion_jobs[job_id]["progress"] = 30
+        await run_subprocess(
+            "yt-dlp", "-f", "bestaudio", "-o", f"/tmp/{job_id}.%(ext)s",
+            "--cookies", COOKIES_FILE, youtube_url
+        )
+
+        # Step 3: Convert to MP3
+        conversion_jobs[job_id]["status"] = "converting to mp3"
+        conversion_jobs[job_id]["progress"] = 70
+        await run_subprocess(
+            "ffmpeg", "-i", f"/tmp/{job_id}.webm", "-q:a", "0", "-map", "a", mp3_filepath
+        )
+
+        # Step 4: Finalizing
+        conversion_jobs[job_id]["status"] = "finalizing"
+        conversion_jobs[job_id]["progress"] = 90
+
+        # Step 5: Done
         conversion_jobs[job_id]["status"] = "done"
         conversion_jobs[job_id]["progress"] = 100
         conversion_jobs[job_id]["download_url"] = f"/download/{mp3_filename}"
@@ -312,6 +334,7 @@ async def root():
                 const fill = document.getElementById('progressFill');
                 const lbl = document.getElementById('progressLabel');
                 bar.style.display = 'block';
+                fill.style.transition = 'width 0.5s ease'; // Smooth animation
                 fill.style.width = percent + '%';
                 lbl.textContent = label || '';
             }
@@ -350,21 +373,20 @@ async def root():
                     fetch(`/conversion_status/${job_id}`)
                     .then(res => res.json())
                     .then(data => {
-                        if (data.status === "initializing") {
-                            showProgress(20, "Initializing...");
-                        } else if (data.status === "downloading") {
-                            showProgress(50, "Downloading...");
+                        if (data.status === "error") {
+                            hideProgress();
+                            resultDiv.innerHTML = `<span style="color:red;">Error: ${data.error}</span>`;
+                            clearInterval(interval);
                         } else if (data.status === "done") {
                             hideProgress();
-                            resultDiv.innerHTML = '<a class="download-btn" href="' + data.download_url + '" target="_blank" download>Download MP3</a>';
+                            resultDiv.innerHTML = `<a class="download-btn" href="${data.download_url}" target="_blank" download>Download MP3</a>`;
                             clearInterval(interval);
-                        } else if (data.status === "error") {
-                            hideProgress();
-                            resultDiv.innerHTML = '<span style="color:red;">Error: ' + data.error + '</span>';
-                            clearInterval(interval);
+                        } else {
+                            // Update progress bar and label
+                            showProgress(data.progress, `${data.status}...`);
                         }
                     });
-                }, 2000);
+                }, 1000);
             }
         </script>
     </body>
