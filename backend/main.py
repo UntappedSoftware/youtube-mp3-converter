@@ -39,17 +39,19 @@ async def start_conversion(request: ConversionRequest):
     try:
         # Step 1: Get the YouTube stream URL
         stream_url = await run_subprocess(
-            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", COOKIES_FILE, request.youtube_url
+            "yt-dlp", "-f", "bestaudio", "-g", "--no-part", "--cookies", COOKIES_FILE, request.youtube_url
         )
 
         # Step 2: Use ffmpeg to process the stream and convert it to MP3
         ffmpeg_command = [
             "ffmpeg",
-            "-i", stream_url,  # Input is the YouTube stream URL
-            "-f", "mp3",       # Output format is MP3
-            "-b:a", "192k",    # Audio bitrate
-            "-vn",             # No video
-            "pipe:1"           # Output to stdout (streaming)
+            "-re",               # Read input in real-time
+            "-i", stream_url,    # Input is the YouTube stream URL
+            "-f", "mp3",         # Output format is MP3
+            "-b:a", "192k",      # Audio bitrate
+            "-vn",               # No video
+            "-flush_packets", "1",  # Flush packets immediately
+            "pipe:1"             # Output to stdout (streaming)
         ]
 
         process = await asyncio.create_subprocess_exec(
@@ -61,7 +63,7 @@ async def start_conversion(request: ConversionRequest):
         # Step 3: Stream the MP3 output to the user's browser
         async def mp3_stream():
             while True:
-                chunk = await process.stdout.read(1024)  # Read in chunks
+                chunk = await process.stdout.read(8192)  # Reduce chunk size to 8 KB
                 if not chunk:
                     break
                 yield chunk
@@ -217,11 +219,13 @@ async def stream_conversion(youtube_url: str):
         # Step 2: Use ffmpeg to process the stream and convert it to MP3
         ffmpeg_command = [
             "ffmpeg",
-            "-i", stream_url,  # Input is the YouTube stream URL
-            "-f", "mp3",       # Output format is MP3
-            "-b:a", "192k",    # Audio bitrate
-            "-vn",             # No video
-            "pipe:1"           # Output to stdout (streaming)
+            "-re",               # Read input in real-time
+            "-i", stream_url,    # Input is the YouTube stream URL
+            "-f", "mp3",         # Output format is MP3
+            "-b:a", "192k",      # Audio bitrate
+            "-vn",               # No video
+            "-flush_packets", "1",  # Flush packets immediately
+            "pipe:1"             # Output to stdout (streaming)
         ];
 
         process = await asyncio.create_subprocess_exec(
@@ -233,7 +237,7 @@ async def stream_conversion(youtube_url: str):
         # Step 3: Stream the MP3 output to the user's browser
         async def mp3_stream():
             while True:
-                chunk = await process.stdout.read(1024)  # Read in chunks
+                chunk = await process.stdout.read(8192)  # Reduce chunk size to 8 KB
                 if not chunk:
                     break
                 yield chunk
