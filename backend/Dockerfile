@@ -1,38 +1,19 @@
-# Use BuildKit for faster builds
-FROM python:3.11-slim as builder
 
-# Install system dependencies (including ffmpeg and its libs)
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    libblas3 \
-    liblapack3 \
-    libopenblas0 \
-    && rm -rf /var/lib/apt/lists/*
+-2
+Lines changed: 2 additions & 2 deletions
+Original file line number	Original file line	Diff line number	Diff line change
+@@ -1,15 +1,15 @@
+FROM python:3.11-slim
 
-# Install yt-dlp
-RUN pip install --no-cache-dir yt-dlp
-
-# Set workdir and install Python deps
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Final stage (switch to full image for all libs)
-FROM python:3.11
-
-# Copy ffmpeg and yt-dlp from builder
-COPY --from=builder /usr/bin/ffmpeg /usr/bin/ffmpeg
-COPY --from=builder /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
-
-# Copy Python packages and binaries from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-
-# Set workdir
 WORKDIR /app
 
-# Copy app files
-COPY . .
+COPY . /app
+
+# Install ffmpeg and other dependencies
+RUN apt-get update && \
+    apt-get install -y ffmpeg && \
+    pip install --upgrade pip && \
+    pip install fastapi "uvicorn[standard]" yt-dlp
 
 EXPOSE 8000
 
