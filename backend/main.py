@@ -340,7 +340,8 @@ PROXIES = fetch_free_proxies()
 
 def get_random_proxy():
     """Select a random proxy from the list."""
-    return random.choice(PROXIES) if PROXIES else None
+    #return random.choice(PROXIES) if PROXIES else None
+    return None  # Disable proxies for testing
 
 # Example usage in convert_youtube_to_mp3
 async def convert_youtube_to_mp3(youtube_url, job_id):
