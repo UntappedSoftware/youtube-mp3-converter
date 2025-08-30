@@ -35,58 +35,18 @@ async def run_subprocess(*args):
 class ConversionRequest(BaseModel):
     youtube_url: str
 
-@app.post("/start_conversion", response_class=StreamingResponse)
-async def start_conversion(request: ConversionRequest):
+@app.post("/start_conversion")
+async def start_conversion(request: ConversionRequest, background_tasks: BackgroundTasks):
     try:
-        # Step 1: Get the YouTube stream URL
-        try:
-            stream_url = await run_subprocess(
-                "yt-dlp", "-f", "bestaudio", "-g", "--no-part", "--cookies", COOKIES_FILE, request.youtube_url
-            )
-        except Exception as e:
-            return {"error": f"yt-dlp failed: {str(e)}"}
+        # Generate a unique job ID
+        job_id = str(uuid.uuid4())
+        conversion_jobs[job_id] = {"status": "initializing", "progress": 0, "download_url": None, "error": None}
 
-        # Step 2: Use ffmpeg to process the stream and convert it to MP3
-        ffmpeg_command = [
-            "ffmpeg",
-            "-re",
-            "-fflags", "nobuffer",
-            "-i", stream_url,
-            "-f", "mp3",
-            "-b:a", "192k",
-            "-vn",
-            "-flush_packets", "1",
-            "pipe:1"
-        ]
+        # Add the conversion task to the background
+        background_tasks.add_task(convert_youtube_to_mp3, request.youtube_url, job_id)
 
-        process = await asyncio.create_subprocess_exec(
-            *ffmpeg_command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        # Step 3: Stream the MP3 output to the user's browser
-        async def mp3_stream():
-            try:
-                while True:
-                    chunk = await process.stdout.read(8192)
-                    if not chunk:
-                        break
-                    yield chunk
-            except Exception as e:
-                print(f"Error during streaming: {str(e)}")
-                raise
-            finally:
-                stderr = await process.stderr.read()
-                print(f"FFmpeg stderr: {stderr.decode().strip()}")
-
-        headers = {
-            "Content-Disposition": 'attachment; filename="converted.mp3"',
-            "Content-Type": "audio/mpeg",
-        }
-
-        return StreamingResponse(mp3_stream(), headers=headers)
-
+        # Return the job ID to the client
+        return {"job_id": job_id}
     except Exception as e:
         return {"error": str(e)}
 
@@ -163,31 +123,46 @@ async def root():
                 resultDiv.innerHTML = 'Starting conversion...';
 
                 try {
-                    // Start the conversion and handle the streaming response
-                    const response = await fetch('/start_conversion', {
+                    // Start the conversion and get the job ID
+                    const res = await fetch('/start_conversion', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ youtube_url: url })
                     });
-
-                    if (!response.ok) {
+                    const data = await res.json();
+                    if (!data.job_id) {
                         throw new Error('Failed to start conversion.');
                     }
+                    const jobId = data.job_id;
 
-                    // Create a hidden link to trigger the download
-                    const blob = await response.blob();
-                    const downloadUrl = window.URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = downloadUrl;
-                    link.download = 'converted.mp3';
-                    link.style.display = 'none';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-
-                    resultDiv.innerHTML = 'Download started!';
+                    // Poll the job status
+                    const pollInterval = 2000;
+                    const poll = setInterval(async () => {
+                        const statusRes = await fetch(`/job_status/${jobId}`);
+                        const statusData = await statusRes.json();
+                        if (statusData.error) {
+                            clearInterval(poll);
+                            resultDiv.innerHTML = `<span style="color:darkred;">Error: ${statusData.error}</span>`;
+                            return;
+                        }
+                        if (statusData.status === 'downloading') {
+                            resultDiv.innerHTML = `Downloading and converting... (${statusData.progress || 0}%)`;
+                        } else if (statusData.status === 'done') {
+                            clearInterval(poll);
+                            const link = document.createElement('a');
+                            link.href = statusData.download_url;
+                            link.className = 'download-btn';
+                            link.textContent = 'Download MP3';
+                            link.setAttribute('download', '');
+                            resultDiv.innerHTML = '<div>Conversion complete:</div>';
+                            resultDiv.appendChild(link);
+                        } else if (statusData.status === 'error') {
+                            clearInterval(poll);
+                            resultDiv.innerHTML = `<span style="color:darkred;">Conversion failed: ${statusData.error}</span>`;
+                        }
+                    }, pollInterval);
                 } catch (err) {
-                    resultDiv.textContent = 'Error starting conversion: ' + err.message;
+                    resultDiv.textContent = `Error starting conversion: ${err.message}`;
                 }
             }
         </script>
@@ -271,3 +246,43 @@ async def stream_conversion(youtube_url: str):
 
     except Exception as e:
         return {"error": str(e)}
+
+async def convert_youtube_to_mp3(youtube_url, job_id):
+    try:
+        mp3_filename = f"{job_id}.mp3"
+        mp3_filepath = f"/tmp/{mp3_filename}"
+        conversion_jobs[job_id]["status"] = "downloading"
+        conversion_jobs[job_id]["progress"] = 10
+
+        # Step 1: Get the YouTube stream URL
+        stream_url = await run_subprocess(
+            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", COOKIES_FILE, youtube_url
+        )
+
+        # Step 2: Use ffmpeg to process the stream and convert it to MP3
+        ffmpeg_command = [
+            "ffmpeg",
+            "-i", stream_url,
+            "-f", "mp3",
+            "-b:a", "192k",
+            "-vn",
+            mp3_filepath
+        ]
+
+        process = await asyncio.create_subprocess_exec(
+            *ffmpeg_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await process.communicate()
+
+        if process.returncode != 0:
+            raise Exception("FFmpeg conversion failed")
+
+        # Update the job status to "done" and set the download URL
+        conversion_jobs[job_id]["status"] = "done"
+        conversion_jobs[job_id]["progress"] = 100
+        conversion_jobs[job_id]["download_url"] = f"/download/{mp3_filename}"
+    except Exception as e:
+        conversion_jobs[job_id]["status"] = "error"
+        conversion_jobs[job_id]["error"] = str(e)
