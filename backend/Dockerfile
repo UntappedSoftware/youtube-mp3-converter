@@ -29,7 +29,6 @@ COPY --from=builder /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
 
 # Copy ffmpeg and BLAS libraries (fix for missing shared libs)
 COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
-COPY --from=builder /usr/lib /usr/lib  # Additional lib path for libblas
 
 # Copy Python packages and binaries from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
