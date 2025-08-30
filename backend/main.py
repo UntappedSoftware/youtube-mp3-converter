@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from pydantic import BaseModel
 import asyncio
+from asyncio import Semaphore
 import os
 import uuid
 import logging
@@ -280,56 +281,59 @@ async def stream_conversion(youtube_url: str):
     except Exception as e:
         return {"error": str(e)}
 
+# Add a semaphore to limit concurrent conversions (e.g., 2 at a time)
+conversion_semaphore = Semaphore(2)
+
 async def convert_youtube_to_mp3(youtube_url, job_id):
-    try:
-        start_time = time.time()
-        logger.info(f"Job {job_id}: Starting conversion process.")
+    async with conversion_semaphore:  # Limit concurrency
+        try:
+            start_time = time.time()
+            logger.info(f"Job {job_id}: Starting conversion process.")
 
-        # Fetch audio stream URL
-        step_start = time.time()
-        yt_dlp_process = await asyncio.create_subprocess_exec(
-            "yt-dlp", "-f", "bestaudio", "--no-playlist", "-o", "-", "--http-chunk-size", "10M", "--cookies", COOKIES_FILE, youtube_url,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        logger.info(f"Job {job_id}: yt-dlp process started. Time taken: {time.time() - step_start:.2f} seconds.")
+            # Fetch audio stream URL (optimized)
+            step_start = time.time()
+            yt_dlp_process = await asyncio.create_subprocess_exec(
+                "yt-dlp", "-f", "bestaudio", "--no-playlist", "-o", "-", "--http-chunk-size", "10M", "--cookies", COOKIES_FILE, youtube_url,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            logger.info(f"Job {job_id}: yt-dlp process started. Time taken: {time.time() - step_start:.2f} seconds.")
 
-        # Start ffmpeg process
-        step_start = time.time()
-        ffmpeg_process = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-i", "pipe:0", "-f", "mp3", "-b:a", "128k", "-vn",
-            "-preset", "ultrafast", "-threads", "4", f"/tmp/{job_id}.mp3",
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        logger.info(f"Job {job_id}: ffmpeg process started. Time taken: {time.time() - step_start:.2f} seconds.")
+            # Start ffmpeg process (optimized)
+            step_start = time.time()
+            ffmpeg_process = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-i", "pipe:0", "-f", "mp3", "-b:a", "96k", "-vn",  # Reduced bitrate for speed
+                "-preset", "ultrafast", "-threads", "4", f"/tmp/{job_id}.mp3",
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            logger.info(f"Job {job_id}: ffmpeg process started. Time taken: {time.time() - step_start:.2f} seconds.")
 
-        # Pipe data
-        step_start = time.time()
-        await pipe_streams(yt_dlp_process, ffmpeg_process)
-        logger.info(f"Job {job_id}: Data piped in {time.time() - step_start:.2f} seconds.")
+            # Pipe data (optimized)
+            step_start = time.time()
+            await pipe_streams(yt_dlp_process, ffmpeg_process)
+            logger.info(f"Job {job_id}: Data piped in {time.time() - step_start:.2f} seconds.")
 
-        # Wait for ffmpeg to finish
-        step_start = time.time()
-        await ffmpeg_process.communicate()
-        logger.info(f"Job {job_id}: ffmpeg finished in {time.time() - step_start:.2f} seconds.")
+            # Wait for ffmpeg to finish
+            step_start = time.time()
+            await ffmpeg_process.communicate()
+            logger.info(f"Job {job_id}: ffmpeg finished in {time.time() - step_start:.2f} seconds.")
 
-        logger.info(f"Job {job_id}: Total conversion time: {time.time() - start_time:.2f} seconds.");
-        conversion_jobs[job_id]["status"] = "done"
-        conversion_jobs[job_id]["progress"] = 100
-        conversion_jobs[job_id]["download_url"] = f"/download/{job_id}.mp3"
-    except Exception as e:
-        logger.error(f"Job {job_id}: Conversion failed: {str(e)}")
-        conversion_jobs[job_id]["status"] = "error"
-        conversion_jobs[job_id]["error"] = str(e)
-
+            logger.info(f"Job {job_id}: Total conversion time: {time.time() - start_time:.2f} seconds.");
+            conversion_jobs[job_id]["status"] = "done"
+            conversion_jobs[job_id]["progress"] = 100
+            conversion_jobs[job_id]["download_url"] = f"/download/{job_id}.mp3"
+        except Exception as e:
+            logger.error(f"Job {job_id}: Conversion failed: {str(e)}")
+            conversion_jobs[job_id]["status"] = "error"
+            conversion_jobs[job_id]["error"] = str(e)
 
 async def pipe_streams(yt_dlp_process, ffmpeg_process):
     try:
         logger.info("Starting to pipe data from yt-dlp to ffmpeg.")
         total_bytes = 0
-        chunk_size = 524288  # 512 KB chunks
+        chunk_size = 1048576  # 1 MB chunks (increased for speed)
         while True:
             chunk = await yt_dlp_process.stdout.read(chunk_size)
             if not chunk:
@@ -342,7 +346,6 @@ async def pipe_streams(yt_dlp_process, ffmpeg_process):
     except Exception as e:
         logger.error(f"Error during piping streams: {str(e)}")
         raise
-
 
 @app.on_event("startup")
 async def preload_dependencies():
