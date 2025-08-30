@@ -240,7 +240,7 @@ async def stream_conversion(youtube_url: str):
             "-fflags", "nobuffer",  # Minimize buffering
             "-i", stream_url,    # Input is the YouTube stream URL
             "-f", "mp3",         # Output format is MP3
-            "-b:a", "128k",      # Lower audio bitrate for faster conversion
+            "-b:a", "96k",      # Lower audio bitrate for faster conversion
             "-vn",               # No video
             "-preset", "ultrafast",  # Use the fastest encoding preset
             "-threads", "4",         # Use 4 threads (adjust based on your server's CPU cores)
@@ -288,7 +288,7 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
         # Fetch audio stream URL
         step_start = time.time()
         yt_dlp_process = await asyncio.create_subprocess_exec(
-            "yt-dlp", "-f", "bestaudio", "--no-playlist", "--extract-audio", "-o", "-", "--http-chunk-size", "10M", "--cookies", COOKIES_FILE, youtube_url,
+            "yt-dlp", "-f", "bestaudio", "--extract-audio", "--no-playlist", "-o", "-", "--http-chunk-size", "10M", "--cookies", COOKIES_FILE, youtube_url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -329,7 +329,7 @@ async def pipe_streams(yt_dlp_process, ffmpeg_process):
     try:
         logger.info("Starting to pipe data from yt-dlp to ffmpeg.")
         total_bytes = 0
-        chunk_size = 65536  # 64 KB chunks
+        chunk_size = 262144  # 256 KB chunks
         while True:
             chunk = await yt_dlp_process.stdout.read(chunk_size)
             if not chunk:
