@@ -282,21 +282,22 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
         # Fetch audio stream URL
         step_start = time.time()
         yt_dlp_process = await asyncio.create_subprocess_exec(
-            "yt-dlp", "-f", "bestaudio", "-o", "-", "--cookies", COOKIES_FILE, youtube_url,
+            "yt-dlp", "-f", "bestaudio", "--no-playlist", "--extract-audio", "-o", "-", "--http-chunk-size", "10M", "--cookies", COOKIES_FILE, youtube_url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        logger.info(f"Job {job_id}: yt-dlp process started.")
+        logger.info(f"Job {job_id}: yt-dlp process started. Time taken: {time.time() - step_start:.2f} seconds.")
 
         # Start ffmpeg process
         step_start = time.time()
         ffmpeg_process = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-i", "pipe:0", "-f", "mp3", "-b:a", "128k", "-vn", f"/tmp/{job_id}.mp3",
+            "ffmpeg", "-i", "pipe:0", "-f", "mp3", "-b:a", "128k", "-vn",
+            "-preset", "ultrafast", "-threads", "4", f"/tmp/{job_id}.mp3",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        logger.info(f"Job {job_id}: ffmpeg process started.")
+        logger.info(f"Job {job_id}: ffmpeg process started. Time taken: {time.time() - step_start:.2f} seconds.")
 
         # Pipe data
         step_start = time.time()
@@ -317,16 +318,18 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
         conversion_jobs[job_id]["status"] = "error"
         conversion_jobs[job_id]["error"] = str(e)
 
+
 async def pipe_streams(yt_dlp_process, ffmpeg_process):
     try:
         logger.info("Starting to pipe data from yt-dlp to ffmpeg.")
         total_bytes = 0
+        chunk_size = 65536  # 64 KB chunks
         while True:
-            chunk = await yt_dlp_process.stdout.read(8192)  # Read in chunks
+            chunk = await yt_dlp_process.stdout.read(chunk_size)
             if not chunk:
                 break
             total_bytes += len(chunk)
-            ffmpeg_process.stdin.write(chunk)  # Write to ffmpeg stdin
+            ffmpeg_process.stdin.write(chunk)
         await ffmpeg_process.stdin.drain()
         ffmpeg_process.stdin.close()
         logger.info(f"Finished piping data. Total bytes transferred: {total_bytes}")
@@ -334,7 +337,10 @@ async def pipe_streams(yt_dlp_process, ffmpeg_process):
         logger.error(f"Error during piping streams: {str(e)}")
         raise
 
+
 @app.on_event("startup")
 async def preload_dependencies():
+    logger.info("Preloading yt-dlp and ffmpeg dependencies.")
     await run_subprocess("yt-dlp", "--version")
     await run_subprocess("ffmpeg", "-version")
+    logger.info("Dependencies preloaded successfully.")
