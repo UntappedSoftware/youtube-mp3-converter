@@ -301,8 +301,8 @@ conversion_semaphore = Semaphore(2)
 def test_proxy(proxy):
     """Test if a proxy works by making a request to httpbin.org/ip."""
     try:
-        protocol = 'https' if proxy.startswith('https') else 'http'
-        response = requests.get('http://httpbin.org/ip', proxies={protocol: proxy}, timeout=5)
+        # Use HTTPS for the test since proxy is HTTPS
+        response = requests.get('https://httpbin.org/ip', proxies={'https': proxy}, timeout=5)
         if response.status_code == 200:
             return True
         return False
@@ -331,25 +331,22 @@ def fetch_free_proxies():
                 port = cols[1].text.strip()
                 https = cols[6].text.strip().lower() == 'yes'
                 
-                if https:
+                if https:  # Only keep HTTPS proxies
                     proxy = f'https://{ip}:{port}'
-                else:
-                    proxy = f'http://{ip}:{port}'
-                
-                proxies.append(proxy)
+                    proxies.append(proxy)
         
-        logger.info(f"Fetched {len(proxies)} proxies. Testing...")
+        logger.info(f"Fetched {len(proxies)} HTTPS proxies. Testing...")
         
-        # Filter proxies (test up to 50 to avoid long startup)
+        # Filter proxies (test up to 40)
         tested_proxies = []
-        for proxy in proxies[:50]:  # Test up to 50
+        for proxy in proxies[:40]:
             if test_proxy(proxy):
                 tested_proxies.append(proxy)
                 logger.info(f"Proxy {proxy} is working.")
             else:
                 logger.warning(f"Proxy {proxy} failed test.")
         
-        logger.info(f"Filtered to {len(tested_proxies)} working proxies.")
+        logger.info(f"Filtered to {len(tested_proxies)} working HTTPS proxies.")
         return tested_proxies
     except Exception as e:
         logger.error(f"Error fetching proxies: {str(e)}")
