@@ -138,63 +138,38 @@ async def root():
                 const url = document.getElementById('youtube_url').value.trim();
                 const resultDiv = document.getElementById('result');
                 const spinner = document.getElementById('spinner');
-                resultDiv.innerHTML = ''; // Clear previous results
-                spinner.style.display = 'block'; // Show the spinner
-                console.log('Spinner shown'); // Debugging log
+                resultDiv.innerHTML = '';
+                spinner.style.display = 'block';
 
                 if (!url) {
-                    spinner.style.display = 'none'; // Hide the spinner
+                    spinner.style.display = 'none';
                     resultDiv.textContent = 'Please enter a YouTube URL.';
                     return;
                 }
 
                 try {
-                    // Start the conversion and get the job ID
-                    const res = await fetch('/start_conversion', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ youtube_url: url })
-                    });
-                    const data = await res.json();
-                    if (!data.job_id) {
+                    // Use streaming endpoint instead of background task
+                    const response = await fetch(`/stream_conversion?youtube_url=${encodeURIComponent(url)}`);
+                    if (!response.ok) {
                         throw new Error('Failed to start conversion.');
                     }
-                    const jobId = data.job_id;
 
-                    // Poll the job status
-                    const pollInterval = 1000; // Reduced from 2000ms
-                    const poll = setInterval(async () => {
-                        const statusRes = await fetch(`/job_status/${jobId}`);
-                        const statusData = await statusRes.json();
-                        if (statusData.error) {
-                            clearInterval(poll);
-                            spinner.style.display = 'none'; // Hide the spinner
-                            console.log('Spinner hidden'); // Debugging log
-                            resultDiv.innerHTML = `<span style="color:darkred;">Error: ${statusData.error}</span>`;
-                            return;
-                        }
-                        if (statusData.status === 'done') {
-                            clearInterval(poll);
-                            spinner.style.display = 'none'; // Hide the spinner
-                            console.log('Spinner hidden'); // Debugging log
-                            const link = document.createElement('a');
-                            link.href = statusData.download_url;
-                            link.className = 'download-btn';
-                            link.textContent = 'Download MP3';
-                            link.setAttribute('download', '');
-                            resultDiv.innerHTML = '<div>Conversion complete:</div>';
-                            resultDiv.appendChild(link);
-                        } else if (statusData.status === 'error') {
-                            clearInterval(poll);
-                            spinner.style.display = 'none'; // Hide the spinner
-                            console.log('Spinner hidden'); // Debugging log
-                            resultDiv.innerHTML = `<span style="color:darkred;">Conversion failed: ${statusData.error}</span>`;
-                        }
-                    }, pollInterval);
+                    // Create a blob and trigger download
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = 'converted.mp3';
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    spinner.style.display = 'none';
+                    resultDiv.innerHTML = 'Download started!';
                 } catch (err) {
-                    spinner.style.display = 'none'; // Hide the spinner
-                    console.log('Spinner hidden'); // Debugging log
-                    resultDiv.textContent = `Error starting conversion: ${err.message}`;
+                    spinner.style.display = 'none';
+                    resultDiv.textContent = `Error: ${err.message}`;
                 }
             }
         </script>
