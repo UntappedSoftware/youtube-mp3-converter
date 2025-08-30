@@ -422,6 +422,14 @@ async def pipe_streams(yt_dlp_process, ffmpeg_process):
     except Exception as e:
         logger.error(f"Error during piping streams: {str(e)}")
         raise
+    finally:
+        # Wait for yt-dlp to finish and capture stderr
+        await yt_dlp_process.wait()
+        yt_dlp_stderr = await yt_dlp_process.stderr.read()
+        if yt_dlp_stderr:
+            logger.error(f"yt-dlp stderr: {yt_dlp_stderr.decode().strip()}")
+        if yt_dlp_process.returncode != 0:
+            logger.error(f"yt-dlp failed with return code {yt_dlp_process.returncode}")
 
 @app.on_event("startup")
 async def startup_event():
