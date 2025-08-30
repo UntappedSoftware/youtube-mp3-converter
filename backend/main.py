@@ -37,9 +37,15 @@ async def run_subprocess(*args):
         stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await process.communicate()
+
+    # Log stderr output even if the process succeeds
+    if stderr:
+        logger.warning(f"Subprocess stderr: {stderr.decode().strip()}")
+
     if process.returncode != 0:
         logger.error(f"Subprocess failed: {stderr.decode().strip()}")
         raise Exception(f"Command failed: {stderr.decode().strip()}")
+
     logger.info(f"Subprocess output: {stdout.decode().strip()}")
     return stdout.decode().strip()
 
