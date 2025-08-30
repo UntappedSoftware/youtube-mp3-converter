@@ -204,10 +204,13 @@ async def download_mp3(mp3_filename: str):
 @app.get("/stream_conversion")
 async def stream_conversion(youtube_url: str):
     try:
+        logger.info(f"Starting stream conversion for URL: {youtube_url}")
+
         # Step 1: Get the YouTube stream URL
         stream_url = await run_subprocess(
             "yt-dlp", "-f", "bestaudio", "--no-playlist", "-g", "--cookies", COOKIES_FILE, youtube_url
-        );
+        )
+        logger.info(f"Stream URL obtained: {stream_url}")
 
         # Step 2: Use ffmpeg to process the stream and convert it to MP3
         ffmpeg_command = [
@@ -216,44 +219,53 @@ async def stream_conversion(youtube_url: str):
             "-fflags", "nobuffer",  # Minimize buffering
             "-i", stream_url,    # Input is the YouTube stream URL
             "-f", "mp3",         # Output format is MP3
-            "-b:a", "96k",      # Lower audio bitrate for faster conversion
+            "-b:a", "96k",       # Lower audio bitrate for faster conversion
             "-vn",               # No video
             "-preset", "ultrafast",  # Use the fastest encoding preset
-            "-threads", "4",         # Use 4 threads (adjust based on your server's CPU cores)
+            "-threads", "8",     # Use 4 threads
             "-flush_packets", "1",  # Flush packets immediately
             "pipe:1"             # Output to stdout (streaming)
-        ];
+        ]
 
         process = await asyncio.create_subprocess_exec(
             *ffmpeg_command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-        );
+        )
+        logger.info("FFmpeg process started")
 
         # Step 3: Stream the MP3 output to the user's browser
         async def mp3_stream():
             try:
+                total_bytes = 0
+                chunk_size = 1048576  # 1 MB chunks (increased for speed)
                 while True:
-                    chunk = await process.stdout.read(8192)  # Reduce chunk size to 8 KB
+                    chunk = await asyncio.wait_for(process.stdout.read(chunk_size), timeout=10.0)  # 10-second timeout
                     if not chunk:
                         break
+                    total_bytes += len(chunk)
                     yield chunk
+                logger.info(f"Streaming complete. Total bytes: {total_bytes}")
+            except asyncio.TimeoutError:
+                logger.error("Streaming timed out")
+                raise
             except Exception as e:
-                print(f"Error during streaming: {str(e)}")  # Log any errors
+                logger.error(f"Error during streaming: {str(e)}")
                 raise
             finally:
                 stderr = await process.stderr.read()
-                print(f"FFmpeg stderr: {stderr.decode().strip()}")  # Log FFmpeg errors
+                logger.info(f"FFmpeg stderr: {stderr.decode().strip()}")
 
         # Set the response headers to trigger a download in the browser
         headers = {
             "Content-Disposition": 'attachment; filename="converted.mp3"',
             "Content-Type": "audio/mpeg",
-        };
+        }
 
-        return StreamingResponse(mp3_stream(), headers=headers);
+        return StreamingResponse(mp3_stream(), headers=headers)
 
     except Exception as e:
+        logger.error(f"Stream conversion failed: {str(e)}")
         return {"error": str(e)}
 
 # Add a semaphore to limit concurrent conversions (e.g., 2 at a time)
