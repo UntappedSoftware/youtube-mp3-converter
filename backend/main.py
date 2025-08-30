@@ -5,6 +5,8 @@ from pydantic import BaseModel
 import asyncio
 import os
 import uuid
+from rq import Queue
+from redis import Redis
 
 # Path to your exported cookies file (Netscape format)
 COOKIES_FILE = "cookies.txt"
@@ -16,6 +18,9 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+redis_conn = Redis()
+queue = Queue(connection=redis_conn)
 
 async def run_subprocess(*args):
     """Run a subprocess asynchronously and capture stdout/stderr."""
@@ -43,6 +48,8 @@ async def websocket_progress(websocket: WebSocket):
         # Start yt-dlp process and stream output
         process = await asyncio.create_subprocess_exec(
             "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
+            "--audio-quality", "5",  # Lower quality for faster conversion
+            "--postprocessor-args", "ffmpeg:-threads 4 -preset ultrafast -qscale:a 5",
             "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
@@ -69,20 +76,21 @@ class ConversionRequest(BaseModel):
     youtube_url: str
 
 @app.post("/start_conversion")
-async def start_conversion(request: ConversionRequest, background_tasks: BackgroundTasks):
-    job_id = str(uuid.uuid4())
-    conversion_jobs[job_id] = {"status": "pending", "progress": 0, "download_url": None, "error": None}
-    background_tasks.add_task(convert_youtube_to_mp3, request.youtube_url, job_id)
-    return {"job_id": job_id}
+async def start_conversion(request: ConversionRequest):
+    job = queue.enqueue(convert_youtube_to_mp3, request.youtube_url)
+    return {"job_id": job.id}
 
 async def convert_youtube_to_mp3(youtube_url, job_id):
     try:
-        mp3_filename = f"{job_id}.mp3"
+        video_id = await run_subprocess("yt-dlp", "--get-id", youtube_url)
+        mp3_filename = f"{video_id}.mp3"
         mp3_filepath = f"/tmp/{mp3_filename}"
         conversion_jobs[job_id]["status"] = "downloading"
         # Run yt-dlp (no progress, just status update)
         await run_subprocess(
             "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
+            "--audio-quality", "5",  # Lower quality for faster conversion
+            "--postprocessor-args", "ffmpeg:-threads 4 -preset ultrafast -qscale:a 5",
             "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url
         )
         conversion_jobs[job_id]["status"] = "done"
@@ -417,6 +425,8 @@ async def websocket_progress(websocket: WebSocket):
 
         process = await asyncio.create_subprocess_exec(
             "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
+            "--audio-quality", "5",  # Lower quality for faster conversion
+            "--postprocessor-args", "ffmpeg:-threads 4 -preset ultrafast -qscale:a 5",
             "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
@@ -454,6 +464,8 @@ async def get_video_url(youtube_url: str = Query(...), fmt: str = "bestaudio"):
         # Download and convert to MP3 using optimized yt-dlp command
         await run_subprocess(
             "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
+            "--audio-quality", "5",  # Lower quality for faster conversion
+            "--postprocessor-args", "ffmpeg:-threads 4 -preset ultrafast -qscale:a 5",
             "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url
         )
 
@@ -467,5 +479,5 @@ async def get_video_url(youtube_url: str = Query(...), fmt: str = "bestaudio"):
 async def download_mp3(mp3_filename: str):
     mp3_filepath = f"/tmp/{mp3_filename}"
     if os.path.exists(mp3_filepath):
-        return FileResponse(mp3_filepath, media_type="audio/mpeg", filename=mp3_filename)
-    return {"error": "File not found"} 
+        return {"download_url": f"/download/{video_id}.mp3"}
+    return {"error": "File not found"}
