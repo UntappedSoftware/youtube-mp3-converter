@@ -38,7 +38,7 @@ class ConversionRequest(BaseModel):
 @app.post("/start_conversion")
 async def start_conversion(request: ConversionRequest, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())
-    conversion_jobs[job_id] = {"status": "pending", "progress": 0, "download_url": None, "error": None}
+    conversion_jobs[job_id] = {"status": "initializing", "progress": 0, "download_url": None, "error": None}
     background_tasks.add_task(convert_youtube_to_mp3, request.youtube_url, job_id)
     return {"job_id": job_id}
 
@@ -47,12 +47,15 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
         mp3_filename = f"{job_id}.mp3"
         mp3_filepath = f"/tmp/{mp3_filename}"
         conversion_jobs[job_id]["status"] = "downloading"
-        # Run yt-dlp (no progress, just status update)
+        conversion_jobs[job_id]["progress"] = 10
+
+        # Download and convert to MP3
         await run_subprocess(
             "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
             "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url
         )
         conversion_jobs[job_id]["status"] = "done"
+        conversion_jobs[job_id]["progress"] = 100
         conversion_jobs[job_id]["download_url"] = f"/download/{mp3_filename}"
     except Exception as e:
         conversion_jobs[job_id]["status"] = "error"
@@ -341,13 +344,16 @@ async def root():
                     resultDiv.innerHTML = '<span style="color:red;">Request failed.</span>';
                 });
             }
+
             function pollStatus(job_id, resultDiv) {
                 let interval = setInterval(() => {
-                    fetch('/conversion_status/' + job_id)
+                    fetch(`/conversion_status/${job_id}`)
                     .then(res => res.json())
                     .then(data => {
-                        if (data.status === "pending" || data.status === "downloading") {
-                            showProgress(50, "Converting...");
+                        if (data.status === "initializing") {
+                            showProgress(20, "Initializing...");
+                        } else if (data.status === "downloading") {
+                            showProgress(50, "Downloading...");
                         } else if (data.status === "done") {
                             hideProgress();
                             resultDiv.innerHTML = '<a class="download-btn" href="' + data.download_url + '" target="_blank" download>Download MP3</a>';
