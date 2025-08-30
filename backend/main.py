@@ -148,25 +148,34 @@ async def root():
                 }
 
                 try {
-                    // Fetch the streaming response
-                    const response = await fetch(`/stream_conversion?youtube_url=${encodeURIComponent(url)}`);
-                    if (!response.ok) {
-                        throw new Error('Failed to start conversion.');
-                    }
+                    // Instead of streaming, use background task
+                    const res = await fetch('/start_conversion', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ youtube_url: url })
+                    });
+                    const data = await res.json();
+                    const jobId = data.job_id;
 
-                    // Create a blob from the response
-                    const blob = await response.blob();
-                    const downloadUrl = window.URL.createObjectURL(blob);
-
-                    // Hide spinner and show download button
-                    spinner.style.display = 'none';
-                    const link = document.createElement('a');
-                    link.href = downloadUrl;
-                    link.download = 'converted.mp3';
-                    link.className = 'download-btn';
-                    link.textContent = 'Download MP3';
-                    resultDiv.innerHTML = '<div>Conversion complete:</div>';
-                    resultDiv.appendChild(link);
+                    // Poll for status and show download button
+                    const statusInterval = setInterval(async () => {
+                        const statusRes = await fetch(`/job_status/${jobId}`);
+                        const statusData = await statusRes.json();
+                        if (statusData.status === 'done') {
+                            clearInterval(statusInterval);
+                            spinner.style.display = 'none';
+                            const link = document.createElement('a');
+                            link.href = `/download/${jobId}.mp3`;
+                            link.className = 'download-btn';
+                            link.textContent = 'Download MP3';
+                            resultDiv.innerHTML = '<div>Conversion complete:</div>';
+                            resultDiv.appendChild(link);
+                        } else if (statusData.status === 'error') {
+                            clearInterval(statusInterval);
+                            spinner.style.display = 'none';
+                            resultDiv.textContent = `Error: ${statusData.error}`;
+                        }
+                    }, 1000); // Check status every 1 second
                 } catch (err) {
                     spinner.style.display = 'none';
                     resultDiv.textContent = `Error: ${err.message}`;
