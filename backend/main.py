@@ -105,16 +105,15 @@ async def root():
             <input type="text" id="youtube_url" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" />
             <br>
             <button onclick="startConversion()">Convert</button>
-            <div id="result">
-                <div id="spinner" style="display: none;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 100 100" fill="none">
-                        <circle cx="50" cy="50" r="40" stroke="#0078d7" stroke-width="10" stroke-linecap="round" stroke-dasharray="188.4" stroke-dashoffset="0">
-                            <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1s" repeatCount="indefinite" />
-                            <animate attributeName="stroke-dashoffset" values="0;188.4" dur="1s" repeatCount="indefinite" />
-                        </circle>
-                    </svg>
-                </div>
+            <div id="spinner" style="display: none; margin-top: 10px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 100 100" fill="none">
+                    <circle cx="50" cy="50" r="40" stroke="#ff69b4" stroke-width="10" stroke-linecap="round" stroke-dasharray="188.4" stroke-dashoffset="0">
+                        <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1s" repeatCount="indefinite" />
+                        <animate attributeName="stroke-dashoffset" values="0;188.4" dur="1s" repeatCount="indefinite" />
+                    </circle>
+                </svg>
             </div>
+            <div id="result"></div>
             <a class="coffee-btn" href="https://ko-fi.com/mp3tube" target="_blank">
                 ☕ Buy me a coffee
             </a>
@@ -271,6 +270,11 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
         mp3_filepath = f"/tmp/{mp3_filename}"
         conversion_jobs[job_id]["status"] = "downloading"
         conversion_jobs[job_id]["progress"] = 10
+
+        // document.getElementById('spinner').style.display = 'block';
+        // setTimeout(() => {
+        //     document.getElementById('spinner').style.display = 'none';
+        // }, 3000);
 
         # Step 1: Get the YouTube stream URL
         stream_url = await run_subprocess(
