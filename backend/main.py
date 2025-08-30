@@ -297,11 +297,10 @@ async def stream_conversion(youtube_url: str):
 # Add a semaphore to limit concurrent conversions (e.g., 2 at a time)
 conversion_semaphore = Semaphore(2)
 
-# Function to test a proxy
+# Function to test a proxy (keep timeout at 5 seconds, no retries)
 def test_proxy(proxy):
     """Test if a proxy works by making a request to httpbin.org/ip."""
     try:
-        # Use HTTPS for the test since proxy is HTTPS
         response = requests.get('https://httpbin.org/ip', proxies={'https': proxy}, timeout=5)
         if response.status_code == 200:
             return True
@@ -309,31 +308,23 @@ def test_proxy(proxy):
     except:
         return False
 
-# Function to fetch and filter proxies
+# Function to fetch and filter proxies from the new provider
 def fetch_free_proxies():
-    """Fetch a list of free proxies from https://free-proxy-list.net/ and filter bad ones."""
-    url = 'https://free-proxy-list.net/'
+    """Fetch HTTPS proxies from https://www.proxy-list.download/api/v1/get and filter bad ones."""
+    url = 'https://www.proxy-list.download/api/v1/get?type=https'
     proxies = []
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
-        table = soup.find('table', {'class': 'table table-striped table-bordered'})
-        if not table:
-            logger.warning("Proxy table not found on the page.")
-            return proxies
+        data = response.json()
         
-        rows = table.find_all('tr')[1:]  # Skip header row
-        for row in rows:
-            cols = row.find_all('td')
-            if len(cols) >= 7:
-                ip = cols[0].text.strip()
-                port = cols[1].text.strip()
-                https = cols[6].text.strip().lower() == 'yes'
-                
-                if https:  # Only keep HTTPS proxies
-                    proxy = f'https://{ip}:{port}'
-                    proxies.append(proxy)
+        # Extract proxies from the JSON response
+        for item in data:
+            if 'IP' in item and 'PORT' in item:
+                ip = item['IP']
+                port = item['PORT']
+                proxy = f'https://{ip}:{port}'
+                proxies.append(proxy)
         
         logger.info(f"Fetched {len(proxies)} HTTPS proxies. Testing...")
         
@@ -455,7 +446,7 @@ async def startup_event():
     PROXIES = fetch_free_proxies()
     logger.info(f"Loaded {len(PROXIES)} proxies on startup.")
     
-    # Optional: Refresh proxies every hour
+    # Refresh proxies every hour
     import asyncio
     async def refresh_proxies():
         while True:
