@@ -1,9 +1,12 @@
 # Use BuildKit for faster builds
 FROM python:3.11-slim as builder
 
-# Install system dependencies
+# Install system dependencies (including ffmpeg and its libs)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
+    libblas3 \
+    liblapack3 \
+    libopenblas0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp
@@ -17,12 +20,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Final stage
 FROM python:3.11-slim
 
+# Set library path for shared libs
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/lib
+
 # Copy ffmpeg and yt-dlp from builder
 COPY --from=builder /usr/bin/ffmpeg /usr/bin/ffmpeg
 COPY --from=builder /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
 
-# Copy ffmpeg libraries (fix for missing shared libs)
+# Copy ffmpeg and BLAS libraries (fix for missing shared libs)
 COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
+COPY --from=builder /usr/lib /usr/lib  # Additional lib path for libblas
 
 # Copy Python packages and binaries from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
