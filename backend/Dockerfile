@@ -21,6 +21,9 @@ FROM python:3.11-slim
 COPY --from=builder /usr/bin/ffmpeg /usr/bin/ffmpeg
 COPY --from=builder /usr/local/bin/yt-dlp /usr/local/bin/yt-dlp
 
+# Copy ffmpeg libraries (fix for missing shared libs)
+COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
+
 # Copy Python packages and binaries from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
