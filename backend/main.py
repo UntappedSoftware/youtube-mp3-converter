@@ -148,25 +148,25 @@ async def root():
                 }
 
                 try {
-                    // Use streaming endpoint instead of background task
+                    // Fetch the streaming response
                     const response = await fetch(`/stream_conversion?youtube_url=${encodeURIComponent(url)}`);
                     if (!response.ok) {
                         throw new Error('Failed to start conversion.');
                     }
 
-                    // Create a blob and trigger download
+                    // Create a blob from the response
                     const blob = await response.blob();
                     const downloadUrl = window.URL.createObjectURL(blob);
+
+                    // Hide spinner and show download button
+                    spinner.style.display = 'none';
                     const link = document.createElement('a');
                     link.href = downloadUrl;
                     link.download = 'converted.mp3';
-                    link.style.display = 'none';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-
-                    spinner.style.display = 'none';
-                    resultDiv.innerHTML = 'Download started!';
+                    link.className = 'download-btn';
+                    link.textContent = 'Download MP3';
+                    resultDiv.innerHTML = '<div>Conversion complete:</div>';
+                    resultDiv.appendChild(link);
                 } catch (err) {
                     spinner.style.display = 'none';
                     resultDiv.textContent = `Error: ${err.message}`;
