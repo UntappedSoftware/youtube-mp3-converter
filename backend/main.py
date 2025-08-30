@@ -105,7 +105,16 @@ async def root():
             <input type="text" id="youtube_url" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" />
             <br>
             <button onclick="startConversion()">Convert</button>
-            <div id="result"></div>
+            <div id="result">
+                <div id="spinner" style="display: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 100 100" fill="none">
+                        <circle cx="50" cy="50" r="40" stroke="#0078d7" stroke-width="10" stroke-linecap="round" stroke-dasharray="188.4" stroke-dashoffset="0">
+                            <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1s" repeatCount="indefinite" />
+                            <animate attributeName="stroke-dashoffset" values="0;188.4" dur="1s" repeatCount="indefinite" />
+                        </circle>
+                    </svg>
+                </div>
+            </div>
             <a class="coffee-btn" href="https://ko-fi.com/mp3tube" target="_blank">
                 ☕ Buy me a coffee
             </a>
@@ -114,13 +123,15 @@ async def root():
             async function startConversion() {
                 const url = document.getElementById('youtube_url').value.trim();
                 const resultDiv = document.getElementById('result');
-                resultDiv.innerHTML = '';
+                const spinner = document.getElementById('spinner');
+                resultDiv.innerHTML = ''; // Clear previous results
+                spinner.style.display = 'block'; // Show the spinner
+
                 if (!url) {
+                    spinner.style.display = 'none'; // Hide the spinner
                     resultDiv.textContent = 'Please enter a YouTube URL.';
                     return;
                 }
-
-                resultDiv.innerHTML = 'Starting conversion...';
 
                 try {
                     // Start the conversion and get the job ID
@@ -142,13 +153,13 @@ async def root():
                         const statusData = await statusRes.json();
                         if (statusData.error) {
                             clearInterval(poll);
+                            spinner.style.display = 'none'; // Hide the spinner
                             resultDiv.innerHTML = `<span style="color:darkred;">Error: ${statusData.error}</span>`;
                             return;
                         }
-                        if (statusData.status === 'downloading') {
-                            resultDiv.innerHTML = `Downloading and converting... (${statusData.progress || 0}%)`;
-                        } else if (statusData.status === 'done') {
+                        if (statusData.status === 'done') {
                             clearInterval(poll);
+                            spinner.style.display = 'none'; // Hide the spinner
                             const link = document.createElement('a');
                             link.href = statusData.download_url;
                             link.className = 'download-btn';
@@ -158,10 +169,12 @@ async def root():
                             resultDiv.appendChild(link);
                         } else if (statusData.status === 'error') {
                             clearInterval(poll);
+                            spinner.style.display = 'none'; // Hide the spinner
                             resultDiv.innerHTML = `<span style="color:darkred;">Conversion failed: ${statusData.error}</span>`;
                         }
                     }, pollInterval);
                 } catch (err) {
+                    spinner.style.display = 'none'; // Hide the spinner
                     resultDiv.textContent = `Error starting conversion: ${err.message}`;
                 }
             }
