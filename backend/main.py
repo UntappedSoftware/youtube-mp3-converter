@@ -126,6 +126,7 @@ async def root():
                 const spinner = document.getElementById('spinner');
                 resultDiv.innerHTML = ''; // Clear previous results
                 spinner.style.display = 'block'; // Show the spinner
+                console.log('Spinner shown'); // Debugging log
 
                 if (!url) {
                     spinner.style.display = 'none'; // Hide the spinner
@@ -154,12 +155,14 @@ async def root():
                         if (statusData.error) {
                             clearInterval(poll);
                             spinner.style.display = 'none'; // Hide the spinner
+                            console.log('Spinner hidden'); // Debugging log
                             resultDiv.innerHTML = `<span style="color:darkred;">Error: ${statusData.error}</span>`;
                             return;
                         }
                         if (statusData.status === 'done') {
                             clearInterval(poll);
                             spinner.style.display = 'none'; // Hide the spinner
+                            console.log('Spinner hidden'); // Debugging log
                             const link = document.createElement('a');
                             link.href = statusData.download_url;
                             link.className = 'download-btn';
@@ -170,11 +173,13 @@ async def root():
                         } else if (statusData.status === 'error') {
                             clearInterval(poll);
                             spinner.style.display = 'none'; // Hide the spinner
+                            console.log('Spinner hidden'); // Debugging log
                             resultDiv.innerHTML = `<span style="color:darkred;">Conversion failed: ${statusData.error}</span>`;
                         }
                     }, pollInterval);
                 } catch (err) {
                     spinner.style.display = 'none'; // Hide the spinner
+                    console.log('Spinner hidden'); // Debugging log
                     resultDiv.textContent = `Error starting conversion: ${err.message}`;
                 }
             }
