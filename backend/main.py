@@ -271,10 +271,8 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
         conversion_jobs[job_id]["status"] = "downloading"
         conversion_jobs[job_id]["progress"] = 10
 
-        // document.getElementById('spinner').style.display = 'block';
-        // setTimeout(() => {
-        //     document.getElementById('spinner').style.display = 'none';
-        // }, 3000);
+        # Simulate progress updates (removed invalid JavaScript code)
+        # You may implement progress updates using asyncio.sleep and a loop if needed.
 
         # Step 1: Get the YouTube stream URL
         stream_url = await run_subprocess(
