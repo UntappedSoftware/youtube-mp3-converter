@@ -34,31 +34,48 @@ async def run_subprocess(*args):
 class ConversionRequest(BaseModel):
     youtube_url: str
 
-@app.post("/start_conversion")
-async def start_conversion(request: ConversionRequest, background_tasks: BackgroundTasks):
-    job_id = str(uuid.uuid4())
-    conversion_jobs[job_id] = {"status": "initializing", "progress": 0, "download_url": None, "error": None}
-    background_tasks.add_task(convert_youtube_to_mp3, request.youtube_url, job_id)
-    return {"job_id": job_id}
-
-async def convert_youtube_to_mp3(youtube_url, job_id):
+@app.post("/start_conversion", response_class=StreamingResponse)
+async def start_conversion(request: ConversionRequest):
     try:
-        mp3_filename = f"{job_id}.mp3"
-        mp3_filepath = f"/tmp/{mp3_filename}"
-        conversion_jobs[job_id]["status"] = "downloading"
-        conversion_jobs[job_id]["progress"] = 10
-
-        # Download and convert to MP3
-        await run_subprocess(
-            "yt-dlp", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3",
-            "-o", mp3_filepath, "--cookies", COOKIES_FILE, youtube_url
+        # Step 1: Get the YouTube stream URL
+        stream_url = await run_subprocess(
+            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", COOKIES_FILE, request.youtube_url
         )
-        conversion_jobs[job_id]["status"] = "done"
-        conversion_jobs[job_id]["progress"] = 100
-        conversion_jobs[job_id]["download_url"] = f"/download/{mp3_filename}"
+
+        # Step 2: Use ffmpeg to process the stream and convert it to MP3
+        ffmpeg_command = [
+            "ffmpeg",
+            "-i", stream_url,  # Input is the YouTube stream URL
+            "-f", "mp3",       # Output format is MP3
+            "-b:a", "192k",    # Audio bitrate
+            "-vn",             # No video
+            "pipe:1"           # Output to stdout (streaming)
+        ]
+
+        process = await asyncio.create_subprocess_exec(
+            *ffmpeg_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        # Step 3: Stream the MP3 output to the user's browser
+        async def mp3_stream():
+            while True:
+                chunk = await process.stdout.read(1024)  # Read in chunks
+                if not chunk:
+                    break
+                yield chunk
+
+        # Set the response headers to trigger a download in the browser
+        headers = {
+            "Content-Disposition": 'attachment; filename="converted.mp3"',
+            "Content-Type": "audio/mpeg",
+        }
+
+        return StreamingResponse(mp3_stream(), headers=headers)
+
     except Exception as e:
-        conversion_jobs[job_id]["status"] = "error"
-        conversion_jobs[job_id]["error"] = str(e)
+        return {"error": str(e)}
 
 @app.get("/job_status/{job_id}")
 async def job_status(job_id: str):
