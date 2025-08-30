@@ -297,9 +297,23 @@ async def stream_conversion(youtube_url: str):
 # Add a semaphore to limit concurrent conversions (e.g., 2 at a time)
 conversion_semaphore = Semaphore(2)
 
-# Function to fetch proxies from free-proxy-list.net
+# Function to test a proxy
+def test_proxy(proxy):
+    """Test if a proxy works by making a request to httpbin.org/ip."""
+    try:
+        response = requests.get('https://httpbin.org/ip', proxies={'https': proxy}, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            # Check if the IP in the response is not your real IP (indicating proxy is working)
+            # For simplicity, just check if request succeeded
+            return True
+        return False
+    except:
+        return False
+
+# Function to fetch and filter proxies
 def fetch_free_proxies():
-    """Fetch a list of free proxies from https://free-proxy-list.net/."""
+    """Fetch a list of free proxies from https://free-proxy-list.net/ and filter bad ones."""
     url = 'https://free-proxy-list.net/'
     proxies = []
     try:
@@ -308,7 +322,7 @@ def fetch_free_proxies():
         soup = BeautifulSoup(response.text, 'html.parser')
         table = soup.find('table', {'class': 'table table-striped table-bordered'})
         if not table:
-            logging.warning("Proxy table not found on the page.")
+            logger.warning("Proxy table not found on the page.")
             return proxies
         
         rows = table.find_all('tr')[1:]  # Skip header row
@@ -317,11 +331,8 @@ def fetch_free_proxies():
             if len(cols) >= 7:
                 ip = cols[0].text.strip()
                 port = cols[1].text.strip()
-                code = cols[2].text.strip()  # Country code
-                anonymity = cols[4].text.strip()  # e.g., anonymous
-                https = cols[6].text.strip().lower() == 'yes'  # HTTPS support
+                https = cols[6].text.strip().lower() == 'yes'
                 
-                # Prefer HTTPS proxies for yt-dlp
                 if https:
                     proxy = f'https://{ip}:{port}'
                 else:
@@ -329,10 +340,21 @@ def fetch_free_proxies():
                 
                 proxies.append(proxy)
         
-        logging.info(f"Fetched {len(proxies)} proxies.")
-        return proxies[:50]  # Limit to 50 to avoid overload
+        logger.info(f"Fetched {len(proxies)} proxies. Testing...")
+        
+        # Filter proxies (test up to 20 to avoid long startup)
+        tested_proxies = []
+        for proxy in proxies[:20]:  # Limit to 20 for speed
+            if test_proxy(proxy):
+                tested_proxies.append(proxy)
+                logger.info(f"Proxy {proxy} is working.")
+            else:
+                logger.warning(f"Proxy {proxy} failed test.")
+        
+        logger.info(f"Filtered to {len(tested_proxies)} working proxies.")
+        return tested_proxies
     except Exception as e:
-        logging.error(f"Error fetching proxies: {str(e)}")
+        logger.error(f"Error fetching proxies: {str(e)}")
         return []
 
 # List of proxies (populate dynamically)
@@ -340,8 +362,7 @@ PROXIES = fetch_free_proxies()
 
 def get_random_proxy():
     """Select a random proxy from the list."""
-    #return random.choice(PROXIES) if PROXIES else None
-    return None  # Disable proxies for testing
+    return random.choice(PROXIES) if PROXIES else None  # Re-enable proxies
 
 # Example usage in convert_youtube_to_mp3
 async def convert_youtube_to_mp3(youtube_url, job_id):
