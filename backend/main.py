@@ -149,61 +149,30 @@ async def root():
 
                 resultDiv.innerHTML = 'Starting conversion...';
 
-                // Start background conversion
                 try {
-                    const res = await fetch('/start_conversion', {
+                    // Start the conversion and handle the streaming response
+                    const response = await fetch('/start_conversion', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ youtube_url: url })
                     });
-                    const data = await res.json();
-                    if (!data.job_id) {
-                        resultDiv.textContent = 'Failed to start conversion.';
-                        return;
+
+                    if (!response.ok) {
+                        throw new Error('Failed to start conversion.');
                     }
-                    const jobId = data.job_id;
 
-                    // Poll status
-                    const pollInterval = 2000;
-                    const poll = setInterval(async () => {
-                        const statusRes = await fetch(`/job_status/${jobId}`);
-                        const statusData = await statusRes.json();
-                        if (statusData.error) {
-                            clearInterval(poll);
-                            resultDiv.innerHTML = '<span style="color:darkred;">Error: ' + (statusData.error || statusData.error) + '</span>';
-                            return;
-                        }
-                        if (statusData.status === 'downloading') {
-                            resultDiv.innerHTML = 'Downloading and converting... (' + (statusData.progress || 0) + '%)';
-                        } else if (statusData.status === 'done') {
-                            clearInterval(poll);
-                            // Create a hidden link and programmatically click it to start download automatically
-                            const link = document.createElement('a');
-                            link.href = statusData.download_url;
-                            link.className = 'download-btn';
-                            link.textContent = 'Download MP3';
-                            link.setAttribute('download', '');
-                            link.style.display = 'none';
-                            resultDiv.innerHTML = '<div>Conversion complete. Preparing download...</div>';
-                            resultDiv.appendChild(link);
+                    // Create a hidden link to trigger the download
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = 'converted.mp3';
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
 
-                            // Small delay to ensure link is in DOM, then trigger click
-                            setTimeout(() => {
-                                try {
-                                    link.click();
-                                } catch (e) {
-                                    // Fallback: navigate to the file URL (will trigger download because server sends Content-Disposition)
-                                    window.location = statusData.download_url;
-                                }
-                            }, 200);
-                        } else if (statusData.status === 'error') {
-                            clearInterval(poll);
-                            resultDiv.innerHTML = '<span style="color:darkred;">Conversion failed: ' + (statusData.error || 'unknown') + '</span>';
-                        } else {
-                            resultDiv.innerHTML = 'Status: ' + statusData.status;
-                        }
-                    }, pollInterval);
-
+                    resultDiv.innerHTML = 'Download started!';
                 } catch (err) {
                     resultDiv.textContent = 'Error starting conversion: ' + err.message;
                 }
