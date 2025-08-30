@@ -286,7 +286,7 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        logger.info(f"Job {job_id}: yt-dlp completed in {time.time() - step_start:.2f} seconds.")
+        logger.info(f"Job {job_id}: yt-dlp process started.")
 
         # Start ffmpeg process
         step_start = time.time()
@@ -296,11 +296,11 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        logger.info(f"Job {job_id}: ffmpeg started in {time.time() - step_start:.2f} seconds.")
+        logger.info(f"Job {job_id}: ffmpeg process started.")
 
         # Pipe data
         step_start = time.time()
-        await pipe_streams()
+        await pipe_streams(yt_dlp_process, ffmpeg_process)
         logger.info(f"Job {job_id}: Data piped in {time.time() - step_start:.2f} seconds.")
 
         # Wait for ffmpeg to finish
@@ -308,11 +308,31 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
         await ffmpeg_process.communicate()
         logger.info(f"Job {job_id}: ffmpeg finished in {time.time() - step_start:.2f} seconds.")
 
-        logger.info(f"Job {job_id}: Total conversion time: {time.time() - start_time:.2f} seconds.")
+        logger.info(f"Job {job_id}: Total conversion time: {time.time() - start_time:.2f} seconds.");
+        conversion_jobs[job_id]["status"] = "done"
+        conversion_jobs[job_id]["progress"] = 100
+        conversion_jobs[job_id]["download_url"] = f"/download/{job_id}.mp3"
     except Exception as e:
         logger.error(f"Job {job_id}: Conversion failed: {str(e)}")
         conversion_jobs[job_id]["status"] = "error"
         conversion_jobs[job_id]["error"] = str(e)
+
+async def pipe_streams(yt_dlp_process, ffmpeg_process):
+    try:
+        logger.info("Starting to pipe data from yt-dlp to ffmpeg.")
+        total_bytes = 0
+        while True:
+            chunk = await yt_dlp_process.stdout.read(8192)  # Read in chunks
+            if not chunk:
+                break
+            total_bytes += len(chunk)
+            ffmpeg_process.stdin.write(chunk)  # Write to ffmpeg stdin
+        await ffmpeg_process.stdin.drain()
+        ffmpeg_process.stdin.close()
+        logger.info(f"Finished piping data. Total bytes transferred: {total_bytes}")
+    except Exception as e:
+        logger.error(f"Error during piping streams: {str(e)}")
+        raise
 
 @app.on_event("startup")
 async def preload_dependencies():
