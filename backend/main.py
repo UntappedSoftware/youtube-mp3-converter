@@ -383,12 +383,21 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
             # Wait for ffmpeg to finish
             step_start = time.time()
             await ffmpeg_process.communicate()
-            logger.info(f"Job {job_id}: ffmpeg finished in {time.time() - step_start:.2f} seconds.")
+            if ffmpeg_process.returncode != 0:
+                logger.error(f"Job {job_id}: ffmpeg failed with return code {ffmpeg_process.returncode}")
+                conversion_jobs[job_id]["status"] = "error"
+                return
 
-            logger.info(f"Job {job_id}: Total conversion time: {time.time() - start_time:.2f} seconds.");
-            conversion_jobs[job_id]["status"] = "done"
-            conversion_jobs[job_id]["progress"] = 100
-            conversion_jobs[job_id]["download_url"] = f"/download/{job_id}.mp3"
+            # Check if file was created
+            file_path = f"/tmp/{job_id}.mp3"
+            if os.path.exists(file_path):
+                logger.info(f"Job {job_id}: File created successfully at {file_path}")
+                conversion_jobs[job_id]["status"] = "done"
+                conversion_jobs[job_id]["download_url"] = f"/download/{job_id}.mp3"
+            else:
+                logger.error(f"Job {job_id}: File not created at {file_path}")
+                conversion_jobs[job_id]["status"] = "error"
+                conversion_jobs[job_id]["error"] = "File creation failed"
         except Exception as e:
             logger.error(f"Job {job_id}: Conversion failed: {str(e)}")
             conversion_jobs[job_id]["status"] = "error"
