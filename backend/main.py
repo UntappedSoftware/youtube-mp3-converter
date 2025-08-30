@@ -316,14 +316,14 @@ def fetch_free_proxies():
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        data = response.json()
         
-        # Extract proxies from the JSON response
-        for item in data:
-            if 'IP' in item and 'PORT' in item:
-                ip = item['IP']
-                port = item['PORT']
-                proxy = f'https://{ip}:{port}'
+        # Parse as plain text (newline-separated)
+        proxy_list = response.text.strip().split('\n')
+        
+        for line in proxy_list:
+            line = line.strip()
+            if ':' in line:  # Basic validation for IP:PORT
+                proxy = f'https://{line}'
                 proxies.append(proxy)
         
         logger.info(f"Fetched {len(proxies)} HTTPS proxies. Testing...")
