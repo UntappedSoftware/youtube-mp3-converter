@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from pydantic import BaseModel
 import asyncio
 import os
@@ -388,6 +388,17 @@ async def root():
                     });
                 }, 1000);
             }
+
+            function startStreamingConversion() {
+                const url = document.getElementById('youtube_url').value;
+                const resultDiv = document.getElementById('result');
+                resultDiv.innerHTML = `
+                    <audio controls autoplay>
+                        <source src="http://your-droplet-ip/stream_conversion?youtube_url=${encodeURIComponent(url)}" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                `;
+            }
         </script>
     </body>
     </html>
@@ -460,3 +471,40 @@ async def download_mp3(mp3_filename: str):
     if os.path.exists(mp3_filepath):
         return FileResponse(mp3_filepath, media_type="audio/mpeg", filename=mp3_filename)
     return {"error": "File not found"}
+
+@app.get("/stream_conversion")
+async def stream_conversion(youtube_url: str):
+    try:
+        # Step 1: Get the YouTube stream URL
+        stream_url = await run_subprocess(
+            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", COOKIES_FILE, youtube_url
+        )
+
+        # Step 2: Use ffmpeg to process the stream and convert it to MP3
+        ffmpeg_command = [
+            "ffmpeg",
+            "-i", stream_url,  # Input is the YouTube stream URL
+            "-f", "mp3",       # Output format is MP3
+            "-b:a", "192k",    # Audio bitrate
+            "-vn",             # No video
+            "pipe:1"           # Output to stdout (streaming)
+        ]
+
+        process = await asyncio.create_subprocess_exec(
+            *ffmpeg_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        # Step 3: Stream the MP3 output to the user
+        async def mp3_stream():
+            while True:
+                chunk = await process.stdout.read(1024)  # Read in chunks
+                if not chunk:
+                    break
+                yield chunk
+
+        return StreamingResponse(mp3_stream(), media_type="audio/mpeg")
+
+    except Exception as e:
+        return {"error": str(e)}
