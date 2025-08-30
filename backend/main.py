@@ -304,7 +304,7 @@ async def root():
             <p>Paste a YouTube URL below and click Convert to get the audio and download the MP3 file.</p>
             <input type="text" id="youtube_url" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" />
             <br>
-            <button onclick="startConversionPolling()">Convert</button>
+            <button onclick="startStreamingConversion()">Convert</button>
             <div class="progress-bar-bg" id="progressBar">
                 <div class="progress-bar-fill" id="progressFill"></div>
                 <div class="progress-label" id="progressLabel"></div>
@@ -392,12 +392,16 @@ async def root():
             function startStreamingConversion() {
                 const url = document.getElementById('youtube_url').value;
                 const resultDiv = document.getElementById('result');
-                resultDiv.innerHTML = `
-                    <audio controls autoplay>
-                        <source src="http://your-droplet-ip/stream_conversion?youtube_url=${encodeURIComponent(url)}" type="audio/mpeg">
-                        Your browser does not support the audio element.
-                    </audio>
-                `;
+                resultDiv.innerHTML = '';
+
+                // Trigger the download directly
+                const downloadLink = document.createElement('a');
+                downloadLink.href = `http://your-droplet-ip/stream_conversion?youtube_url=${encodeURIComponent(url)}`;
+                downloadLink.download = 'converted.mp3';
+                downloadLink.click();
+
+                // Optionally, show a message while the download starts
+                resultDiv.innerHTML = '<span>Conversion started. Your download will begin shortly...</span>';
             }
 
             function startStreamingDownload() {
