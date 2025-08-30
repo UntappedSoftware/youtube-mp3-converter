@@ -160,13 +160,25 @@ async def root():
                             resultDiv.innerHTML = 'Downloading and converting... (' + (statusData.progress || 0) + '%)';
                         } else if (statusData.status === 'done') {
                             clearInterval(poll);
+                            // Create a hidden link and programmatically click it to start download automatically
                             const link = document.createElement('a');
                             link.href = statusData.download_url;
                             link.className = 'download-btn';
                             link.textContent = 'Download MP3';
                             link.setAttribute('download', '');
-                            resultDiv.innerHTML = '<div>Conversion complete:</div>';
+                            link.style.display = 'none';
+                            resultDiv.innerHTML = '<div>Conversion complete. Preparing download...</div>';
                             resultDiv.appendChild(link);
+
+                            // Small delay to ensure link is in DOM, then trigger click
+                            setTimeout(() => {
+                                try {
+                                    link.click();
+                                } catch (e) {
+                                    // Fallback: navigate to the file URL (will trigger download because server sends Content-Disposition)
+                                    window.location = statusData.download_url;
+                                }
+                            }, 200);
                         } else if (statusData.status === 'error') {
                             clearInterval(poll);
                             resultDiv.innerHTML = '<span style="color:darkred;">Conversion failed: ' + (statusData.error || 'unknown') + '</span>';
