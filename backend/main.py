@@ -147,7 +147,7 @@ async def root():
                     const jobId = data.job_id;
 
                     // Poll the job status
-                    const pollInterval = 2000;
+                    const pollInterval = 1000; // Reduced from 2000ms
                     const poll = setInterval(async () => {
                         const statusRes = await fetch(`/job_status/${jobId}`);
                         const statusData = await statusRes.json();
@@ -216,7 +216,7 @@ async def stream_conversion(youtube_url: str):
     try:
         # Step 1: Get the YouTube stream URL
         stream_url = await run_subprocess(
-            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", COOKIES_FILE, youtube_url
+            "yt-dlp", "-f", "bestaudio", "--no-playlist", "-g", "--cookies", COOKIES_FILE, youtube_url
         );
 
         # Step 2: Use ffmpeg to process the stream and convert it to MP3
@@ -226,8 +226,10 @@ async def stream_conversion(youtube_url: str):
             "-fflags", "nobuffer",  # Minimize buffering
             "-i", stream_url,    # Input is the YouTube stream URL
             "-f", "mp3",         # Output format is MP3
-            "-b:a", "192k",      # Audio bitrate
+            "-b:a", "128k",      # Lower audio bitrate for faster conversion
             "-vn",               # No video
+            "-preset", "ultrafast",  # Use the fastest encoding preset
+            "-threads", "4",         # Use 4 threads (adjust based on your server's CPU cores)
             "-flush_packets", "1",  # Flush packets immediately
             "pipe:1"             # Output to stdout (streaming)
         ];
@@ -271,38 +273,30 @@ async def convert_youtube_to_mp3(youtube_url, job_id):
         conversion_jobs[job_id]["status"] = "downloading"
         conversion_jobs[job_id]["progress"] = 10
 
-        # Simulate progress updates (removed invalid JavaScript code)
-        # You may implement progress updates using asyncio.sleep and a loop if needed.
-
-        # Step 1: Get the YouTube stream URL
-        stream_url = await run_subprocess(
-            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", COOKIES_FILE, youtube_url
+        # Use yt-dlp to stream audio and pipe it directly to ffmpeg
+        yt_dlp_process = await asyncio.create_subprocess_exec(
+            "yt-dlp", "-f", "bestaudio", "-o", "-", "--cookies", COOKIES_FILE, youtube_url,
+            stdout=asyncio.subprocess.PIPE,
         )
-
-        # Step 2: Use ffmpeg to process the stream and convert it to MP3
-        ffmpeg_command = [
-            "ffmpeg",
-            "-i", stream_url,
-            "-f", "mp3",
-            "-b:a", "192k",
-            "-vn",
-            mp3_filepath
-        ]
-
-        process = await asyncio.create_subprocess_exec(
-            *ffmpeg_command,
+        ffmpeg_process = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-i", "pipe:0", "-f", "mp3", "-b:a", "192k", "-vn", mp3_filepath,
+            stdin=yt_dlp_process.stdout,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await process.communicate()
+        await ffmpeg_process.communicate()
 
-        if process.returncode != 0:
+        if ffmpeg_process.returncode != 0:
             raise Exception("FFmpeg conversion failed")
 
-        # Update the job status to "done" and set the download URL
         conversion_jobs[job_id]["status"] = "done"
         conversion_jobs[job_id]["progress"] = 100
         conversion_jobs[job_id]["download_url"] = f"/download/{mp3_filename}"
     except Exception as e:
         conversion_jobs[job_id]["status"] = "error"
         conversion_jobs[job_id]["error"] = str(e)
+
+@app.on_event("startup")
+async def preload_dependencies():
+    await run_subprocess("yt-dlp", "--version")
+    await run_subprocess("ffmpeg", "-version")
